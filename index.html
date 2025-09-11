@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日血压记录应用（用户名密码登录）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- 主应用容器 -->
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 sm:p-8 space-y-6">
+        <div class="flex flex-col items-center text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">每日血压记录</h1>
+            <p class="text-gray-500 mt-2">使用您的用户名和密码安全登录</p>
+        </div>
+
+        <!-- 登录/注册界面 -->
+        <div id="auth-section" class="space-y-4">
+            <div id="login-form" class="space-y-4">
+                <div class="flex flex-col space-y-2">
+                    <label for="username" class="text-sm font-medium text-gray-700">用户名</label>
+                    <input type="text" id="username" placeholder="请输入用户名" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div class="flex flex-col space-y-2">
+                    <label for="password" class="text-sm font-medium text-gray-700">密码</label>
+                    <input type="password" id="password" placeholder="请输入密码" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div class="flex space-x-4">
+                    <button id="register-btn" class="w-1/2 bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all">
+                        注册
+                    </button>
+                    <button id="login-btn" class="w-1/2 bg-green-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-all">
+                        登录
+                    </button>
+                </div>
+            </div>
+            <!-- 状态信息显示 -->
+            <div id="auth-status" class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-sm break-words hidden">
+                <p id="status-message" class="font-medium"></p>
+            </div>
+        </div>
+
+        <!-- 应用主界面 (登录后显示) -->
+        <div id="app-content" class="hidden space-y-6">
+            <!-- 登录状态和用户ID显示 -->
+            <div class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-sm break-words">
+                <p id="user-id-display" class="font-medium"></p>
+            </div>
+
+            <!-- 血压记录表单 -->
+            <div class="bg-gray-50 p-6 rounded-xl space-y-4">
+                <div class="flex flex-col space-y-2">
+                    <label for="systolic" class="text-sm font-medium text-gray-700">收缩压 (mmHg)</label>
+                    <input type="number" id="systolic" placeholder="例如：120" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div class="flex flex-col space-y-2">
+                    <label for="diastolic" class="text-sm font-medium text-gray-700">舒张压 (mmHg)</label>
+                    <input type="number" id="diastolic" placeholder="例如：80" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <button id="record-btn" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50">
+                    记录
+                </button>
+            </div>
+
+            <!-- 记录历史区域 -->
+            <div class="space-y-4">
+                <h2 class="text-xl font-semibold text-gray-800">历史记录</h2>
+                <div id="loading-spinner" class="text-center text-gray-500" style="display:none;">
+                    <svg class="animate-spin h-6 w-6 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                <ul id="readings-list" class="space-y-3">
+                    <!-- 记录将在这里动态生成 -->
+                </ul>
+                <p id="no-readings" class="text-center text-gray-500 italic hidden">目前还没有记录。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase 库引入 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 启用 Firestore 调试日志
+        setLogLevel('debug');
+
+        // 检查全局变量并初始化 Firebase
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        
+        let app, db, auth, userId = null;
+
+        const authSection = document.getElementById('auth-section');
+        const appContent = document.getElementById('app-content');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const registerBtn = document.getElementById('register-btn');
+        const loginBtn = document.getElementById('login-btn');
+        const statusMessageDiv = document.getElementById('auth-status');
+        const statusMessage = document.getElementById('status-message');
+        const recordBtn = document.getElementById('record-btn');
+        const systolicInput = document.getElementById('systolic');
+        const diastolicInput = document.getElementById('diastolic');
+        const readingsList = document.getElementById('readings-list');
+        const noReadingsMessage = document.getElementById('no-readings');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        // 初始化 Firebase
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) {
+            console.error("Firebase 初始化失败: ", e);
+        }
+
+        // 显示状态信息
+        const showStatus = (message, isError = false) => {
+            statusMessageDiv.classList.remove('hidden');
+            statusMessageDiv.className = `p-4 rounded-xl text-sm break-words ${isError ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-blue-50 border border-blue-200 text-blue-800'}`;
+            statusMessage.textContent = message;
+        };
+
+        // 监听认证状态变化
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // 用户已认证，显示主应用界面
+                userId = user.uid;
+                authSection.classList.add('hidden');
+                appContent.classList.remove('hidden');
+                userIdDisplay.textContent = `用户ID: ${userId}`;
+                console.log(`认证成功，用户ID: ${userId}`);
+                setupRealtimeListener();
+            } else {
+                // 用户未认证，显示登录/注册界面
+                userId = null;
+                authSection.classList.remove('hidden');
+                appContent.classList.add('hidden');
+                console.log("用户未认证，请登录。");
+                showStatus("请注册或登录您的账户。", false);
+            }
+        });
+
+        // 注册新账户
+        registerBtn.addEventListener('click', async () => {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!username || !password || password.length < 6) {
+                showStatus("用户名和密码不能为空，且密码长度至少为6位。", true);
+                return;
+            }
+
+            // 将用户名作为电子邮件前缀
+            const email = `${username}@your-app-domain.com`;
+            
+            try {
+                showStatus("正在注册，请稍候...", false);
+                registerBtn.disabled = true;
+                loginBtn.disabled = true;
+                await createUserWithEmailAndPassword(auth, email, password);
+                // 认证状态变化监听器将自动处理后续逻辑
+            } catch (error) {
+                console.error("注册失败:", error);
+                let errorMessage = "注册失败，请重试。";
+                if (error.code === 'auth/email-already-in-use') {
+                    errorMessage = "此用户名已被使用，请更换一个。";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = "无效的用户名格式。";
+                }
+                showStatus(errorMessage, true);
+            } finally {
+                registerBtn.disabled = false;
+                loginBtn.disabled = false;
+            }
+        });
+
+        // 登录现有账户
+        loginBtn.addEventListener('click', async () => {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!username || !password) {
+                showStatus("请输入用户名和密码。", true);
+                return;
+            }
+            
+            const email = `${username}@your-app-domain.com`;
+
+            try {
+                showStatus("正在登录，请稍候...", false);
+                registerBtn.disabled = true;
+                loginBtn.disabled = true;
+                await signInWithEmailAndPassword(auth, email, password);
+                // 认证状态变化监听器将自动处理后续逻辑
+            } catch (error) {
+                console.error("登录失败:", error);
+                showStatus("登录失败。用户名或密码不正确。", true);
+            } finally {
+                registerBtn.disabled = false;
+                loginBtn.disabled = false;
+            }
+        });
+
+        // 设置 Firestore 实时监听器
+        function setupRealtimeListener() {
+            if (!userId) {
+                console.error("用户ID未定义，无法设置监听器。");
+                return;
+            }
+            loadingSpinner.style.display = 'block';
+            const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
+            const q = collection(db, readingsPath);
+            
+            onSnapshot(q, (querySnapshot) => {
+                loadingSpinner.style.display = 'none';
+                readingsList.innerHTML = '';
+                if (querySnapshot.empty) {
+                    noReadingsMessage.classList.remove('hidden');
+                } else {
+                    noReadingsMessage.classList.add('hidden');
+                    querySnapshot.forEach((doc) => {
+                        const reading = doc.data();
+                        const timestamp = reading.timestamp ? reading.timestamp.toDate().toLocaleString() : 'N/A';
+                        const li = document.createElement('li');
+                        li.className = 'bg-white p-4 rounded-xl shadow flex justify-between items-center';
+                        li.innerHTML = `
+                            <div>
+                                <p class="text-lg font-semibold text-gray-800">${reading.systolic}/${reading.diastolic} mmHg</p>
+                                <p class="text-sm text-gray-500">${timestamp}</p>
+                            </div>
+                        `;
+                        readingsList.appendChild(li);
+                    });
+                }
+            }, (error) => {
+                console.error("监听器获取数据失败: ", error);
+                loadingSpinner.style.display = 'none';
+                showStatus("获取数据失败，请检查网络连接。", true);
+            });
+        }
+
+        // 记录血压数据
+        recordBtn.addEventListener('click', async () => {
+            const systolic = parseInt(systolicInput.value, 10);
+            const diastolic = parseInt(diastolicInput.value, 10);
+            if (isNaN(systolic) || isNaN(diastolic) || systolic <= 0 || diastolic <= 0) {
+                showStatus("请输入有效的血压值。", true);
+                return;
+            }
+            if (!userId) {
+                showStatus("用户未登录，无法保存数据。", true);
+                return;
+            }
+            recordBtn.disabled = true;
+            try {
+                const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
+                await addDoc(collection(db, readingsPath), {
+                    systolic: systolic,
+                    diastolic: diastolic,
+                    timestamp: serverTimestamp()
+                });
+                systolicInput.value = '';
+                diastolicInput.value = '';
+                console.log("血压记录成功。");
+            } catch (e) {
+                console.error("记录失败:", e);
+                showStatus("记录失败，请重试。", true);
+            } finally {
+                recordBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
