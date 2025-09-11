@@ -66,8 +66,9 @@
         <!-- 应用主界面 (登录后显示) -->
         <div id="app-content" class="hidden space-y-6">
             <!-- 登录状态和用户ID显示 -->
-            <div class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-sm break-words">
+            <div class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-sm break-words flex justify-between items-center">
                 <p id="user-id-display" class="font-medium"></p>
+                <button id="logout-btn" class="bg-red-500 text-white text-xs px-3 py-1 rounded-full hover:bg-red-600 transition-all">退出登录</button>
             </div>
 
             <!-- 血压记录表单 -->
@@ -136,6 +137,7 @@
         const registerBtnSpinner = document.getElementById('register-btn-spinner');
         const loginBtnText = document.getElementById('login-btn-text');
         const loginBtnSpinner = document.getElementById('login-btn-spinner');
+        const logoutBtn = document.getElementById('logout-btn');
         const statusMessageDiv = document.getElementById('auth-status');
         const statusMessage = document.getElementById('status-message');
         const recordBtn = document.getElementById('record-btn');
@@ -204,8 +206,13 @@
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
 
-            if (!username || !password || password.length < 6) {
-                showStatus("用户名和密码不能为空，且密码长度至少为6位。", true);
+            if (!username || !password) {
+                showStatus("用户名和密码不能为空。", true);
+                return;
+            }
+
+            if (password.length < 6) {
+                showStatus("密码必须至少为6位。", true);
                 return;
             }
 
@@ -261,6 +268,17 @@
                 registerBtn.disabled = false;
             }
         });
+
+        // 退出登录
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("退出登录失败:", error);
+                showStatus("退出登录失败，请重试。", true);
+            }
+        });
+
 
         // 设置 Firestore 实时监听器
         function setupRealtimeListener() {
