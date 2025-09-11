@@ -156,8 +156,9 @@
                             <option value="other-10">其他10</option>
                         </select>
                     </div>
-                    <button id="record-btn" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50">
-                        记录
+                    <button id="record-btn" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center">
+                        <span id="record-btn-text">记录</span>
+                        <div id="record-btn-spinner" class="btn-loading-spinner"></div>
                     </button>
                 </div>
             </div>
@@ -543,7 +544,7 @@
                 showStatus("用户未登录，无法保存数据。", true);
                 return;
             }
-            setButtonLoadingState(recordBtn, recordBtn.firstElementChild, recordBtn.lastElementChild, true);
+            setButtonLoadingState(recordBtn, document.getElementById('record-btn-text'), document.getElementById('record-btn-spinner'), true);
             try {
                 const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
                 await addDoc(collection(db, readingsPath), {
@@ -560,7 +561,7 @@
                 console.error("记录失败:", e);
                 showStatus("记录失败，请重试。", true);
             } finally {
-                setButtonLoadingState(recordBtn, recordBtn.firstElementChild, recordBtn.lastElementChild, false);
+                setButtonLoadingState(recordBtn, document.getElementById('record-btn-text'), document.getElementById('record-btn-spinner'), false);
             }
         });
 
