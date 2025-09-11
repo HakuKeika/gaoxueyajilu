@@ -104,19 +104,23 @@
 
     <!-- Firebase 库引入 -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-analytics.js";
 
         // 启用 Firestore 调试日志
         setLogLevel('debug');
 
         // 检查全局变量并初始化 Firebase
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        
-        let app, db, auth, userId = null;
+        const firebaseConfig = {
+    apiKey: "AIzaSyCpHJVVOQy51sPh6sU3GRotLG1v54IjXmk",
+    authDomain: "gaoxueyajilu.firebaseapp.com",
+    projectId: "gaoxueyajilu",
+    storageBucket: "gaoxueyajilu.firebasestorage.app",
+    messagingSenderId: "902988573811",
+    appId: "1:902988573811:web:00cee1c09af3b9c96b0e06",
+    measurementId: "G-SGN0D6BGJ6"
+  };
 
         const authSection = document.getElementById('auth-section');
         const appContent = document.getElementById('app-content');
@@ -140,7 +144,8 @@
 
         // 初始化 Firebase
         try {
-            app = initializeApp(firebaseConfig);
+            const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
             db = getFirestore(app);
             auth = getAuth(app);
         } catch (e) {
@@ -321,3 +326,4 @@
     </script>
 </body>
 </html>
+
