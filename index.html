@@ -293,7 +293,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, onSnapshot, serverTimestamp, getDocs, query, where, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, serverTimestamp, getDocs, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
         // 启用 Firestore 调试日志
@@ -406,12 +406,12 @@
         const setButtonLoadingState = (button, textSpan, spinner, isLoading) => {
             if (isLoading) {
                 button.disabled = true;
-                textSpan.classList.add('hidden');
-                spinner.style.display = 'block';
+                if (textSpan) textSpan.classList.add('hidden');
+                if (spinner) spinner.style.display = 'block';
             } else {
                 button.disabled = false;
-                textSpan.classList.remove('hidden');
-                spinner.style.display = 'none';
+                if (textSpan) textSpan.classList.remove('hidden');
+                if (spinner) spinner.style.display = 'none';
             }
         };
 
