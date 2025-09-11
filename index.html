@@ -46,6 +46,28 @@
                 display: none !important;
             }
         }
+        /* 自定义模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
@@ -256,6 +278,15 @@
             </table>
         </div>
     </div>
+    
+    <!-- 自定义模态框 HTML -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
+            <p id="modal-message" class="mb-6"></p>
+            <button id="modal-ok-btn" class="bg-blue-600 text-white px-6 py-2 rounded-xl">好的</button>
+        </div>
+    </div>
 
     <audio id="reminder-sound" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" preload="auto"></audio>
     <script type="module">
@@ -280,7 +311,8 @@
         };
         
         let app, db, auth, userId = null;
-        let reminderIntervals = [];
+        let reminderTimeouts = {};
+        let reminderIntervals = {};
         let chartInstance = null;
         let allReadings = [];
         let hospitalReminders = {};
@@ -330,6 +362,12 @@
         const printDateRange = document.getElementById('print-date-range');
         const printDataBody = document.getElementById('print-data-body');
 
+        // Modal elements
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalOkBtn = document.getElementById('modal-ok-btn');
+
         // 初始化 Firebase
         try {
             if (!app) {
@@ -348,6 +386,20 @@
             statusMessageDiv.className = `p-4 rounded-xl text-sm break-words ${isError ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-blue-50 border border-blue-200 text-blue-800'}`;
             statusMessage.textContent = message;
         };
+        
+        // 自定义模态框显示
+        const showModal = (title, message) => {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            modal.style.display = 'flex';
+            reminderSound.play();
+        };
+
+        modalOkBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            reminderSound.pause();
+            reminderSound.currentTime = 0;
+        });
 
         // 设置按钮的加载状态
         const setButtonLoadingState = (button, textSpan, spinner, isLoading) => {
@@ -399,6 +451,7 @@
                 allReadings = [];
                 if(chartInstance) chartInstance.destroy();
                 clearIntervals();
+                clearTimeouts();
             }
         });
 
@@ -518,10 +571,8 @@
             }
             loadingSpinner.style.display = 'block';
             const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
-            const q = query(
-                collection(db, readingsPath),
-                orderBy('timestamp', 'asc')
-            );
+            // 移除了 orderby，以防止没有索引导致数据获取失败
+            const q = collection(db, readingsPath);
             
             onSnapshot(q, (querySnapshot) => {
                 loadingSpinner.style.display = 'none';
@@ -530,7 +581,11 @@
                     querySnapshot.forEach((doc) => {
                         allReadings.push({ id: doc.id, ...doc.data() });
                     });
-                    allReadings.sort((a, b) => a.timestamp - b.timestamp);
+                    allReadings.sort((a, b) => {
+                         const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                         const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                         return timestampA - timestampB;
+                    });
                 }
                 
                 // 更新图表和历史列表
@@ -613,7 +668,7 @@
                 const note = hospitalNoteTextarea.value;
                 
                 if (!time) {
-                    alert("请选择预约时间。");
+                    showModal("错误", "请选择预约时间。");
                     return;
                 }
                 
@@ -626,7 +681,7 @@
                 
                 scheduleReminder(time, reminderMessage, null, reminderTime);
                 updateHospitalRemindersDisplay();
-                alert(`预约 ${selectedAppointment} 已设置！`);
+                showModal("成功", `预约 ${selectedAppointment} 已设置！`);
             });
 
             // 从本地存储加载并显示预约提醒
@@ -668,24 +723,40 @@
             document.querySelectorAll('.delete-reminder-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const keyToDelete = e.target.dataset.key;
-                    if (confirm(`确定要删除预约 ${keyToDelete} 吗？`)) {
+                    // Replace confirm with a custom modal
+                    showModal("确认删除", `确定要删除预约 ${keyToDelete} 吗？`);
+                    document.getElementById('modal-ok-btn').onclick = () => {
+                        modal.style.display = 'none';
                         delete hospitalReminders[keyToDelete];
                         localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
                         updateHospitalRemindersDisplay();
-                        // 刷新提醒闹钟
+                        
+                        // 清除旧的提醒
                         clearIntervals();
+                        clearTimeouts();
+                        
+                        // 重新安排剩余的提醒
                         for (const key in hospitalReminders) {
                             const reminder = hospitalReminders[key];
                             scheduleReminder(reminder.time, `预约 ${key}: ${reminder.note || '没有备注'}`, null, new Date(reminder.time).getTime());
                         }
-                    }
+                    };
                 });
             });
         };
         
         const clearIntervals = () => {
-            reminderIntervals.forEach(interval => clearInterval(interval));
-            reminderIntervals = [];
+            for(let key in reminderIntervals) {
+                clearInterval(reminderIntervals[key]);
+            }
+            reminderIntervals = {};
+        };
+        
+        const clearTimeouts = () => {
+            for(let key in reminderTimeouts) {
+                clearTimeout(reminderTimeouts[key]);
+            }
+            reminderTimeouts = {};
         };
 
         const scheduleReminder = (time, message, statusSpan, timestamp = null) => {
@@ -710,22 +781,22 @@
             if (timeUntilReminder < 0) return; // Don't schedule past reminders
 
             const timeoutId = setTimeout(() => {
-                alert(message);
-                reminderSound.play();
-                // For a one-time hospital appointment, we don't need to loop.
+                showModal("提醒", message);
             }, timeUntilReminder);
             
-            // For periodic BP reminders, we'll keep the interval logic.
-            if (!timestamp) {
+            // For one-time hospital reminders, store the timeout id
+            if (timestamp) {
+                reminderTimeouts[timestamp] = timeoutId;
+            } else {
+                 // For periodic BP reminders, we'll keep the interval logic.
                 const [hours, minutes] = time.split(':').map(Number);
                 const interval = setInterval(() => {
                     const currentTime = new Date();
                     if (currentTime.getHours() === hours && currentTime.getMinutes() === minutes) {
-                        alert(message);
-                        reminderSound.play();
+                        showModal("提醒", message);
                     }
                 }, 60000); // Check every minute
-                reminderIntervals.push(interval);
+                reminderIntervals[`bp-time-${reminderTime.getHours()}:${reminderTime.getMinutes()}`] = interval;
             }
         };
 
@@ -735,7 +806,7 @@
             const endDate = endDateInput.value;
 
             if (!startDate || !endDate) {
-                alert("请选择开始和结束日期。");
+                showModal("错误", "请选择开始和结束日期。");
                 return;
             }
 
@@ -777,7 +848,7 @@
 
             } catch (e) {
                 console.error("打印数据获取失败:", e);
-                alert("获取打印数据失败，请重试。");
+                showModal("错误", "获取打印数据失败，请重试。");
             }
         });
     </script>
