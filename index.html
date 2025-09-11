@@ -543,7 +543,7 @@
                 showStatus("用户未登录，无法保存数据。", true);
                 return;
             }
-            recordBtn.disabled = true;
+            setButtonLoadingState(recordBtn, recordBtn.firstElementChild, recordBtn.lastElementChild, true);
             try {
                 const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
                 await addDoc(collection(db, readingsPath), {
@@ -554,12 +554,13 @@
                 });
                 systolicInput.value = '';
                 diastolicInput.value = '';
+                showStatus("血压记录成功。", false);
                 console.log("血压记录成功。");
             } catch (e) {
                 console.error("记录失败:", e);
                 showStatus("记录失败，请重试。", true);
             } finally {
-                recordBtn.disabled = false;
+                setButtonLoadingState(recordBtn, recordBtn.firstElementChild, recordBtn.lastElementChild, false);
             }
         });
 
@@ -818,8 +819,7 @@
             const q = query(
                 collection(db, readingsPath),
                 where('timestamp', '>=', start),
-                where('timestamp', '<', end),
-                orderBy('timestamp', 'asc')
+                where('timestamp', '<', end)
             );
             
             try {
@@ -830,8 +830,20 @@
                 if (querySnapshot.empty) {
                     printDataBody.innerHTML = '<tr><td colspan="4" class="text-center py-4">没有找到该日期范围内的记录。</td></tr>';
                 } else {
+                    const printData = [];
                     querySnapshot.forEach((doc) => {
                         const reading = doc.data();
+                        printData.push(reading);
+                    });
+                    
+                    // 在客户端进行排序
+                    printData.sort((a, b) => {
+                        const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                        const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                        return timestampA - timestampB;
+                    });
+                    
+                    printData.forEach(reading => {
                         const timestamp = reading.timestamp.toDate().toLocaleString();
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
