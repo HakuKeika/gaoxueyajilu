@@ -392,8 +392,8 @@
                 setupReminderUI();
             } else {
                 userId = null;
-                authSection.classList.add('hidden');
-                appContent.classList.remove('hidden');
+                authSection.classList.remove('hidden');
+                appContent.classList.add('hidden');
                 console.log("用户未认证，请登录。");
                 showStatus("请注册或登录您的账户。", false);
                 allReadings = [];
@@ -518,7 +518,10 @@
             }
             loadingSpinner.style.display = 'block';
             const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
-            const q = collection(db, readingsPath);
+            const q = query(
+                collection(db, readingsPath),
+                orderBy('timestamp', 'asc')
+            );
             
             onSnapshot(q, (querySnapshot) => {
                 loadingSpinner.style.display = 'none';
