@@ -211,22 +211,7 @@
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
                     <h2 class="text-xl font-semibold text-gray-800">高血压测量时间提醒</h2>
                     <div id="bp-reminders" class="space-y-4">
-                        <div class="flex items-center space-x-2">
-                            <input type="time" id="bp-time-1" class="px-2 py-1 border border-gray-300 rounded-md">
-                            <button class="set-bp-reminder-btn bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
-                            <span id="bp-status-1" class="text-sm text-gray-500">未设置</span>
                         </div>
-                        <div class="flex items-center space-x-2">
-                            <input type="time" id="bp-time-2" class="px-2 py-1 border border-gray-300 rounded-md">
-                            <button class="set-bp-reminder-btn bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
-                            <span id="bp-status-2" class="text-sm text-gray-500">未设置</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <input type="time" id="bp-time-3" class="px-2 py-1 border border-gray-300 rounded-md">
-                            <button class="set-bp-reminder-btn bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
-                            <span id="bp-status-3" class="text-sm text-gray-500">未设置</span>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
@@ -318,10 +303,10 @@
         
         let app, db, auth, userId = null;
         let reminderTimeouts = {};
-        let reminderIntervals = {};
         let chartInstance = null;
         let allReadings = [];
         let hospitalReminders = {};
+        let bpReminders = {};
 
         const authSection = document.getElementById('auth-section');
         const appContent = document.getElementById('app-content');
@@ -459,8 +444,7 @@
                 showStatus("请注册或登录您的账户。", false);
                 allReadings = [];
                 if(chartInstance) chartInstance.destroy();
-                clearIntervals();
-                clearTimeouts();
+                clearReminders();
             }
         });
 
@@ -707,31 +691,34 @@
         };
         historyFilterPeriod.addEventListener('change', updateHistoryDisplay);
 
-        // Blood pressure reminders
-        const setupReminderUI = async () => {
-            bpRemindersContainer.innerHTML = '';
-            for(let i = 1; i <= 3; i++) {
-                const div = document.createElement('div');
-                div.className = 'flex items-center space-x-2';
-                div.innerHTML = `
-                    <input type="time" id="bp-time-${i}" class="px-2 py-1 border border-gray-300 rounded-md">
-                    <button class="set-bp-reminder-btn bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
-                    <span id="bp-status-${i}" class="text-sm text-gray-500">未设置</span>
-                `;
-                bpRemindersContainer.appendChild(div);
+        const clearReminders = () => {
+            for(let key in reminderTimeouts) {
+                clearTimeout(reminderTimeouts[key]);
             }
-            document.querySelectorAll('.set-bp-reminder-btn').forEach((btn, index) => {
-                btn.addEventListener('click', () => {
-                    const timeInput = document.getElementById(`bp-time-${index + 1}`);
-                    const statusSpan = document.getElementById(`bp-status-${index + 1}`);
-                    const time = timeInput.value;
-                    if (time) {
-                        scheduleReminder(time, `血压提醒 ${index + 1}`, statusSpan);
-                    }
-                });
-            });
+            reminderTimeouts = {};
+            localStorage.removeItem('bpReminders');
+            localStorage.removeItem('hospitalReminders');
+        };
 
-            // Hospital appointment reminders
+        const setupReminderUI = () => {
+            // Load reminders from local storage
+            const savedBPReminders = localStorage.getItem('bpReminders');
+            if (savedBPReminders) {
+                bpReminders = JSON.parse(savedBPReminders);
+                updateBPRemindersDisplay();
+            } else {
+                bpReminders = {};
+                // Display initial reminder creation form
+                updateBPRemindersDisplay();
+            }
+
+            const savedHospitalReminders = localStorage.getItem('hospitalReminders');
+            if (savedHospitalReminders) {
+                hospitalReminders = JSON.parse(savedHospitalReminders);
+                updateHospitalRemindersDisplay();
+            }
+
+            // Bind hospital reminder set button
             setHospitalReminderBtn.addEventListener('click', () => {
                 const selectedAppointment = hospitalAppointmentSelect.value;
                 const time = hospitalTimeInput.value;
@@ -743,33 +730,82 @@
                 }
                 
                 const reminderMessage = `预约 ${selectedAppointment}: ${note || '没有备注'}`;
+                const reminderId = `hospital-${selectedAppointment}`;
                 const reminderTime = new Date(time).getTime();
                 
-                // Save to local storage
-                hospitalReminders[selectedAppointment] = { time, note };
+                hospitalReminders[reminderId] = { time, note, id: reminderId };
                 localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
                 
-                scheduleReminder(time, reminderMessage, null, reminderTime);
+                scheduleReminder(reminderId, reminderTime, reminderMessage);
                 updateHospitalRemindersDisplay();
                 showModal("成功", `预约 ${selectedAppointment} 已设置！`);
             });
-
-            // Load and display reminders from local storage
-            const savedReminders = localStorage.getItem('hospitalReminders');
-            if (savedReminders) {
-                hospitalReminders = JSON.parse(savedReminders);
-                updateHospitalRemindersDisplay();
-                // Schedule alarms for saved reminders
-                for (const key in hospitalReminders) {
-                    const reminder = hospitalReminders[key];
-                    scheduleReminder(reminder.time, `预约 ${key}: ${reminder.note || '没有备注'}`, null, new Date(reminder.time).getTime());
-                }
-            }
         };
+        
+        const updateBPRemindersDisplay = () => {
+            bpRemindersContainer.innerHTML = '';
+            
+            // Add a form to add a new reminder
+            const addForm = document.createElement('div');
+            addForm.className = 'flex items-center space-x-2';
+            addForm.innerHTML = `
+                <input type="time" id="new-bp-time" class="px-2 py-1 border border-gray-300 rounded-md">
+                <button id="set-new-bp-reminder-btn" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
+            `;
+            bpRemindersContainer.appendChild(addForm);
+
+            // Bind the set new reminder button
+            document.getElementById('set-new-bp-reminder-btn').addEventListener('click', () => {
+                const timeInput = document.getElementById('new-bp-time');
+                const time = timeInput.value;
+                if (time) {
+                    const reminderId = `bp-${Date.now()}`;
+                    bpReminders[reminderId] = { time, id: reminderId };
+                    localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
+                    
+                    scheduleReminder(reminderId, null, `是时候测量血压了！`, time);
+                    updateBPRemindersDisplay();
+                } else {
+                    showModal("错误", "请选择一个时间。");
+                }
+            });
+
+            // Display existing reminders
+            for (const key in bpReminders) {
+                const reminder = bpReminders[key];
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-3 bg-white rounded-xl shadow';
+                div.innerHTML = `
+                    <p class="font-semibold">${reminder.time}</p>
+                    <button class="delete-bp-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
+                `;
+                bpRemindersContainer.appendChild(div);
+
+                // Re-schedule existing reminder on page load
+                scheduleReminder(reminder.id, null, `是时候测量血压了！`, reminder.time);
+            }
+            
+            // Bind the delete buttons for existing reminders
+            document.querySelectorAll('.delete-bp-reminder-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idToDelete = e.target.dataset.id;
+                    showModal("确认删除", "确定要删除此提醒吗？");
+                    document.getElementById('modal-ok-btn').onclick = () => {
+                        modal.style.display = 'none';
+                        delete bpReminders[idToDelete];
+                        localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
+                        clearTimeout(reminderTimeouts[idToDelete]);
+                        delete reminderTimeouts[idToDelete];
+                        updateBPRemindersDisplay();
+                    };
+                });
+            });
+        };
+
 
         const updateHospitalRemindersDisplay = () => {
             hospitalRemindersDisplay.innerHTML = '';
-            const sortedKeys = Object.keys(hospitalReminders).sort((a, b) => parseInt(a) - parseInt(b));
+            const sortedKeys = Object.keys(hospitalReminders).sort();
             if (sortedKeys.length === 0) {
                 hospitalRemindersDisplay.innerHTML = '<p class="text-gray-500 text-sm">暂无设置的预约提醒。</p>';
                 return;
@@ -781,92 +817,79 @@
                 div.className = 'flex items-center justify-between p-3 bg-white rounded-xl shadow';
                 div.innerHTML = `
                     <div class="flex-grow space-y-1">
-                        <p class="font-semibold">预约 ${key}</p>
+                        <p class="font-semibold">预约 ${key.split('-')[1]}</p>
                         <p class="text-xs text-gray-500">${displayTime}</p>
                         <p class="text-xs text-gray-500 italic">${reminder.note}</p>
                     </div>
-                    <button class="delete-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-key="${key}">删除</button>
+                    <button class="delete-hospital-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
                 `;
                 hospitalRemindersDisplay.appendChild(div);
+
+                // Re-schedule existing hospital reminder
+                const reminderTime = new Date(reminder.time).getTime();
+                scheduleReminder(reminder.id, reminderTime, `预约 ${key.split('-')[1]}: ${reminder.note || '没有备注'}`);
             });
             // Add event listeners for the newly created delete buttons
-            document.querySelectorAll('.delete-reminder-btn').forEach(btn => {
+            document.querySelectorAll('.delete-hospital-reminder-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    const keyToDelete = e.target.dataset.key;
-                    // Replace confirm with a custom modal
-                    showModal("确认删除", `确定要删除预约 ${keyToDelete} 吗？`);
+                    const idToDelete = e.target.dataset.id;
+                    showModal("确认删除", `确定要删除此预约提醒吗？`);
                     document.getElementById('modal-ok-btn').onclick = () => {
                         modal.style.display = 'none';
-                        delete hospitalReminders[keyToDelete];
+                        delete hospitalReminders[idToDelete];
                         localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
+                        clearTimeout(reminderTimeouts[idToDelete]);
+                        delete reminderTimeouts[idToDelete];
                         updateHospitalRemindersDisplay();
-                        
-                        // Clear old reminders
-                        clearIntervals();
-                        clearTimeouts();
-                        
-                        // Reschedule remaining reminders
-                        for (const key in hospitalReminders) {
-                            const reminder = hospitalReminders[key];
-                            scheduleReminder(reminder.time, `预约 ${key}: ${reminder.note || '没有备注'}`, null, new Date(reminder.time).getTime());
-                        }
                     };
                 });
             });
         };
         
-        const clearIntervals = () => {
-            for(let key in reminderIntervals) {
-                clearInterval(reminderIntervals[key]);
-            }
-            reminderIntervals = {};
-        };
-        
-        const clearTimeouts = () => {
-            for(let key in reminderTimeouts) {
-                clearTimeout(reminderTimeouts[key]);
-            }
-            reminderTimeouts = {};
-        };
-
-        const scheduleReminder = (time, message, statusSpan, timestamp = null) => {
-            const now = new Date();
-            let reminderTime = new Date();
-
-            if (timestamp) {
-                reminderTime.setTime(timestamp);
-            } else {
-                const [hours, minutes] = time.split(':').map(Number);
-                reminderTime.setHours(hours, minutes, 0, 0);
-                if (reminderTime.getTime() < now.getTime()) {
-                    reminderTime.setDate(reminderTime.getDate() + 1);
-                }
+        const scheduleReminder = (id, timestamp, message, timeString) => {
+            // Clear existing timeout for this ID to prevent duplicates
+            if (reminderTimeouts[id]) {
+                clearTimeout(reminderTimeouts[id]);
             }
             
-            if (statusSpan) {
-                statusSpan.textContent = `已设置: ${reminderTime.toLocaleString()}`;
+            let reminderTime = new Date();
+            if (timestamp) {
+                reminderTime.setTime(timestamp);
+            } else if (timeString) {
+                const [hours, minutes] = timeString.split(':').map(Number);
+                reminderTime.setHours(hours, minutes, 0, 0);
+            } else {
+                return; // Not enough info to schedule
             }
 
-            const timeUntilReminder = reminderTime.getTime() - now.getTime();
-            if (timeUntilReminder < 0) return; // Don't schedule past reminders
+            const now = new Date();
+            let timeUntilReminder = reminderTime.getTime() - now.getTime();
+            
+            // If the time is in the past, schedule it for the next day.
+            // This handles the case of page refresh after the time has passed.
+            if (timeUntilReminder < 0 && !timestamp) { // Only for daily BP reminders, not one-time hospital ones
+                timeUntilReminder += 24 * 60 * 60 * 1000;
+            } else if (timeUntilReminder < 0 && timestamp) {
+                // For one-time hospital reminders in the past, don't schedule them
+                return;
+            }
 
             const timeoutId = setTimeout(() => {
                 showModal("提醒", message);
+                // After the reminder sounds, remove it from the list
+                if (id.startsWith('bp-')) {
+                    delete bpReminders[id];
+                    localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
+                    updateBPRemindersDisplay();
+                } else if (id.startsWith('hospital-')) {
+                    delete hospitalReminders[id];
+                    localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
+                    updateHospitalRemindersDisplay();
+                }
+                delete reminderTimeouts[id];
             }, timeUntilReminder);
             
-            // For one-time hospital reminders, store the timeout id
-            if (timestamp) {
-                reminderTimeouts[timestamp] = timeoutId;
-            } else {
-                const [hours, minutes] = time.split(':').map(Number);
-                const interval = setInterval(() => {
-                    const currentTime = new Date();
-                    if (currentTime.getHours() === hours && currentTime.getMinutes() === minutes) {
-                        showModal("提醒", message);
-                    }
-                }, 60000); // Check every minute
-                reminderIntervals[`bp-time-${reminderTime.getHours()}:${reminderTime.getMinutes()}`] = interval;
-            }
+            reminderTimeouts[id] = timeoutId;
         };
 
         // Print function
@@ -937,4 +960,3 @@
     </script>
 </body>
 </html>
-
