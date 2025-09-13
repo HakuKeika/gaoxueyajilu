@@ -1,906 +1,241 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>每日血压记录应用增强版</title>
-    <link rel="icon" href="data:,">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-        .btn-loading-spinner {
-            display: none;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top: 2px solid #fff;
-            border-radius: 50%;
-            width: 1rem;
-            height: 1rem;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            #printable-area, #printable-area * {
-                visibility: visible;
-            }
-            #printable-area {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                font-family: 'Inter', sans-serif;
-            }
-            .no-print {
-                display: none !important;
-            }
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
-            justify-content: center;
-            align-items: center;
-            padding: 1rem;
-        }
-        .modal-content {
-            background-color: #fefefe;
-            padding: 2rem;
-            border-radius: 1rem;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .chart-container {
-            position: relative;
-            width: 100%;
-            height: 300px;
-            max-height: 400px;
-            margin: auto;
-        }
-        @media (min-width: 768px) {
-            .chart-container {
-                height: 350px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>每日血压记录应用增强版</title>
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- jsPDF + autoTable 插件 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-area, #printable-area * { visibility: visible; }
+      #printable-area { position: absolute; left: 0; top: 0; width: 100%; font-family: 'Inter', sans-serif; }
+      .no-print { display: none !important; }
+    }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <!-- Chosen Palette: Warm Neutrals -->
-    <!-- Application Structure Plan: The application is structured as a single-page interactive web application (SPA) with three main, tab-based sections: "记录" (Record), "历史与打印" (History & Print), and "提醒" (Reminders). This structure was chosen for its clear, task-oriented user flow, allowing users to easily navigate between the primary functions of recording data, reviewing it, and setting reminders without page reloads. A central login page ensures data privacy and user-specific content. The layout is responsive, adapting from a single column on mobile to a more spread-out layout on desktop. Key information is grouped into logical cards for better readability. -->
-    <!-- Visualization & Content Choices:
-        - **Report Info:** Blood pressure data (systolic, diastolic, pulse) and notes over time.
-        - **Goal:** Allow users to record, visualize, and review their health data.
-        - **Viz/Presentation Method:**
-            - **Line Chart (Chart.js/Canvas):** To visualize trends of systolic, diastolic, and pulse over time. This is a clear way to see changes and patterns.
-            - **Interactive List:** To display detailed historical records, including text notes.
-            - **Printable Table:** To generate a professional-looking report.
-        - **Interaction:**
-            - **Tab Navigation:** Simple clicks to switch between main functions.
-            - **Dropdowns/Filters:** To filter data by time of day (all, morning, noon, evening) and by period (day, week, month) for charts and lists.
-            - **Print Button:** To trigger a print-friendly view of a selected date range.
-        - **Justification:** This interactive structure prioritizes user control and data exploration. The combination of a visual chart and a detailed, filterable list provides both a high-level overview and specific details, catering to different user needs.
-        - **Library/Method:** Chart.js for all charting, vanilla JavaScript for all interactions and data handling, and Tailwind CSS for all styling.
-        - **CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 sm:p-8 space-y-6">
-        <div class="flex flex-col items-center text-center">
-            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">每日血压记录</h1>
-            <p class="text-gray-500 mt-2">使用您的用户名和密码安全登录</p>
-        </div>
-        <div id="auth-section" class="space-y-4">
-            <div id="tab-content" class="space-y-4">
-                <div id="content-user-pass" class="space-y-4">
-                    <div class="flex flex-col space-y-2">
-                        <label for="username" class="text-sm font-medium text-gray-700">用户名</label>
-                        <input type="text" id="username" placeholder="请输入用户名" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                        <p id="username-error" class="text-red-500 text-sm hidden">用户名不能为空。</p>
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="password" class="text-sm font-medium text-gray-700">密码</label>
-                        <input type="password" id="password" placeholder="请输入密码" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                        <p id="password-error" class="text-red-500 text-sm hidden">密码不能为空，且至少6位。</p>
-                    </div>
-                    <div class="flex space-x-4">
-                        <button id="register-btn" class="w-1/2 bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center">
-                            <span id="register-btn-text">注册</span>
-                            <div id="register-btn-spinner" class="btn-loading-spinner"></div>
-                        </button>
-                        <button id="login-btn" class="w-1/2 bg-green-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-all flex items-center justify-center">
-                            <span id="login-btn-text">登录</span>
-                            <div id="login-btn-spinner" class="btn-loading-spinner"></div>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div id="auth-status" class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-sm break-words hidden">
-                <p id="status-message" class="font-medium"></p>
-            </div>
-        </div>
-        <div id="app-content" class="hidden space-y-6 no-print">
-            <div class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-sm break-words flex justify-between items-center">
-                <p id="user-id-display" class="font-medium"></p>
-                <button id="logout-btn" class="bg-red-500 text-white text-xs px-3 py-1 rounded-full hover:bg-red-600 transition-all">退出登录</button>
-            </div>
-            <div class="flex border-b-2 border-gray-200">
-                <button id="tab-record" class="flex-1 py-2 text-center text-gray-600 font-semibold border-b-2 border-transparent transition-all duration-300">记录</button>
-                <button id="tab-history" class="flex-1 py-2 text-center text-gray-600 font-semibold border-b-2 border-transparent transition-all duration-300">历史与打印</button>
-                <button id="tab-reminders" class="flex-1 py-2 text-center text-gray-600 font-semibold border-b-2 border-transparent transition-all duration-300">提醒</button>
-            </div>
-            <div id="content-record" class="space-y-6">
-                <div class="bg-gray-50 p-6 rounded-xl space-y-4">
-                    <div class="flex flex-col space-y-2">
-                        <label for="systolic" class="text-sm font-medium text-gray-700">收缩压 (mmHg)</label>
-                        <input type="number" id="systolic" placeholder="例如：120" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="diastolic" class="text-sm font-medium text-gray-700">舒张压 (mmHg)</label>
-                        <input type="number" id="diastolic" placeholder="例如：80" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="pulse" class="text-sm font-medium text-gray-700">脉搏 (bpm)</label>
-                        <input type="number" id="pulse" placeholder="例如：75" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="record-time" class="text-sm font-medium text-gray-700">记录时间段</label>
-                        <select id="record-time" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            <option value="morning">早上</option>
-                            <option value="noon">中午</option>
-                            <option value="evening">晚上</option>
-                            <option value="other-1">其他1</option>
-                            <option value="other-2">其他2</option>
-                            <option value="other-3">其他3</option>
-                            <option value="other-4">其他4</option>
-                            <option value="other-5">其他5</option>
-                            <option value="other-6">其他6</option>
-                            <option value="other-7">其他7</option>
-                            <option value="other-8">其他8</option>
-                            <option value="other-9">其他9</option>
-                            <option value="other-10">其他10</option>
-                        </select>
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="note" class="text-sm font-medium text-gray-700">备注</label>
-                        <textarea id="note" placeholder="记录您的感受或任何其他信息..." class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"></textarea>
-                    </div>
-                    <button id="record-btn" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center">
-                        <span id="record-btn-text">记录</span>
-                        <div id="record-btn-spinner" class="btn-loading-spinner"></div>
-                    </button>
-                </div>
-            </div>
-            <div id="content-history" class="space-y-6 hidden">
-                <div class="bg-gray-50 p-6 rounded-xl space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-800">历史图表</h2>
-                    <select id="chart-time-period" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                        <option value="all">全部</option>
-                        <option value="morning">早上</option>
-                        <option value="noon">中午</option>
-                        <option value="evening">晚上</option>
-                        <option value="other-1">其他1</option>
-                        <option value="other-2">其他2</option>
-                        <option value="other-3">其他3</option>
-                        <option value="other-4">其他4</option>
-                        <option value="other-5">其他5</option>
-                        <option value="other-6">其他6</option>
-                        <option value="other-7">其他7</option>
-                        <option value="other-8">其他8</option>
-                        <option value="other-9">其他9</option>
-                        <option value="other-10">其他10</option>
-                    </select>
-                    <div class="chart-container">
-                        <canvas id="myChart"></canvas>
-                    </div>
-                </div>
-                <div class="bg-gray-50 p-6 rounded-xl space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-800">历史数据显示</h2>
-                    <div class="flex flex-col space-y-2">
-                        <label for="history-filter-period" class="text-sm font-medium text-gray-700">显示数据</label>
-                        <select id="history-filter-period" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            <option value="day">最近24小时</option>
-                            <option value="week">最近7天</option>
-                            <option value="month">最近30天</option>
-                        </select>
-                    </div>
-                    <div id="history-data-display" class="space-y-4">
-                         <!-- 历史记录将在此动态加载 -->
-                    </div>
-                </div>
-                <div class="bg-gray-50 p-6 rounded-xl space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-800">打印报告</h2>
-                    <div class="flex flex-col space-y-2">
-                        <label for="start-date" class="text-sm font-medium text-gray-700">开始日期</label>
-                        <input type="date" id="start-date" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="end-date" class="text-sm font-medium text-gray-700">结束日期</label>
-                        <input type="date" id="end-date" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    </div>
-                    <button id="print-btn" class="w-full bg-purple-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-purple-700 transition-all">
-                        打印选定日期的记录
-                    </button>
-                </div>
-            </div>
-            <div id="content-reminders" class="space-y-6 hidden">
-                <div class="bg-gray-50 p-6 rounded-xl space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-800">高血压测量时间提醒</h2>
-                    <div id="bp-reminders" class="space-y-4">
-                        <!-- 血压提醒将在此动态加载 -->
-                    </div>
-                </div>
-                <div class="bg-gray-50 p-6 rounded-xl space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-800">医院预约提醒</h2>
-                    <div class="flex flex-col space-y-2">
-                        <label for="hospital-appointment-select" class="text-sm font-medium text-gray-700">选择预约</label>
-                        <select id="hospital-appointment-select" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            <option value="1">预约 1</option>
-                            <option value="2">预约 2</option>
-                            <option value="3">预约 3</option>
-                            <option value="4">预约 4</option>
-                            <option value="5">预约 5</option>
-                            <option value="6">预约 6</option>
-                            <option value="7">预约 7</option>
-                            <option value="8">预约 8</option>
-                            <option value="9">预约 9</option>
-                            <option value="10">预约 10</option>
-                        </select>
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="hospital-time" class="text-sm font-medium text-gray-700">预约时间</label>
-                        <input type="datetime-local" id="hospital-time" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <label for="hospital-note" class="text-sm font-medium text-gray-700">备注</label>
-                        <textarea id="hospital-note" placeholder="在此处添加预约备注..." class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"></textarea>
-                    </div>
-                    <button id="set-hospital-reminder-btn" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center">
-                        <span>设置预约提醒</span>
-                    </button>
-                    <div id="hospital-reminders-display" class="space-y-2 mt-4 text-sm">
-                        <!-- 提醒将在这里动态显示 -->
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div id="printable-area" class="hidden">
-            <h1 class="text-2xl font-bold mb-4">血压记录报告</h1>
-            <p id="print-date-range" class="text-gray-600 mb-4"></p>
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr>
-                        <th class="border-b-2 py-2">日期</th>
-                        <th class="border-b-2 py-2">时间段</th>
-                        <th class="border-b-2 py-2">收缩压 (mmHg)</th>
-                        <th class="border-b-2 py-2">舒张压 (mmHg)</th>
-                        <th class="border-b-2 py-2">脉搏 (bpm)</th>
-                        <th class="border-b-2 py-2">备注</th>
-                    </tr>
-                </thead>
-                <tbody id="print-data-body">
-                </tbody>
-            </table>
-        </div>
+<body class="p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl mx-auto p-6 space-y-6">
+    <h1 class="text-3xl font-bold text-center">每日血压记录</h1>
+
+    <!-- 历史与打印 -->
+    <div class="space-y-6">
+      <h2 class="text-xl font-semibold">历史与打印</h2>
+      <div>
+        <label class="block mb-1">开始日期</label>
+        <input type="date" id="start-date" class="w-full border px-2 py-1 rounded">
+      </div>
+      <div>
+        <label class="block mb-1">结束日期</label>
+        <input type="date" id="end-date" class="w-full border px-2 py-1 rounded">
+      </div>
+      <div class="flex space-x-4">
+        <button id="print-btn" class="flex-1 bg-purple-600 text-white py-2 rounded">打印选定日期的记录</button>
+        <button id="export-pdf-btn" class="flex-1 bg-red-600 text-white py-2 rounded">导出 PDF</button>
+      </div>
     </div>
-    <div id="modal" class="modal">
-        <div class="modal-content">
-            <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
-            <p id="modal-message" class="mb-6"></p>
-            <button id="modal-ok-btn" class="bg-blue-600 text-white px-6 py-2 rounded-xl">好的</button>
-        </div>
+
+    <!-- Chart.js 图表 -->
+    <div class="bg-gray-50 p-4 rounded-xl">
+      <h2 class="text-lg font-semibold">血压趋势图</h2>
+      <canvas id="myChart" height="200"></canvas>
     </div>
-    <div id="loading-spinner" class="hidden">
-        <div class="spinner-border text-blue-500"></div>
-        <span class="ml-2 text-gray-600">加载中...</span>
-    </div>
-    <audio id="reminder-sound" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" preload="auto"></audio>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, onSnapshot, serverTimestamp, getDocs, query, where, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gaoxueyajilu';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyCpHJVVOQy51sPh6sU3GRotLG1v54IjXmk",
-            authDomain: "gaoxueyajilu.firebaseapp.com",
-            projectId: "gaoxueyajilu",
-            storageBucket: "gaoxueyajilu.firebasestorage.app",
-            messagingSenderId: "902988573811",
-            appId: "1:902988573811:web:00cee1c09af3b9c96b0e06",
-            measurementId: "G-SGN0D6BGJ6"
-        };
-        let app, db, auth, userId = null;
-        let reminderTimeouts = {};
-        let chartInstance = null;
-        let allReadings = [];
-        let hospitalReminders = {};
-        let bpReminders = {};
-        const authSection = document.getElementById('auth-section');
-        const appContent = document.getElementById('app-content');
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const registerBtn = document.getElementById('register-btn');
-        const loginBtn = document.getElementById('login-btn');
-        const registerBtnText = document.getElementById('register-btn-text');
-        const registerBtnSpinner = document.getElementById('register-btn-spinner');
-        const loginBtnText = document.getElementById('login-btn-text');
-        const loginBtnSpinner = document.getElementById('login-btn-spinner');
-        const logoutBtn = document.getElementById('logout-btn');
-        const statusMessageDiv = document.getElementById('auth-status');
-        const statusMessage = document.getElementById('status-message');
-        const recordBtn = document.getElementById('record-btn');
-        const systolicInput = document.getElementById('systolic');
-        const diastolicInput = document.getElementById('diastolic');
-        const pulseInput = document.getElementById('pulse');
-        const noteTextarea = document.getElementById('note');
-        const recordTimeSelect = document.getElementById('record-time');
-        const userIdDisplay = document.getElementById('user-id-display');
-        const loadingSpinner = document.getElementById('loading-spinner');
-        const reminderSound = document.getElementById('reminder-sound');
-        const usernameError = document.getElementById('username-error');
-        const passwordError = document.getElementById('password-error');
-        const tabRecord = document.getElementById('tab-record');
-        const tabHistory = document.getElementById('tab-history');
-        const tabReminders = document.getElementById('tab-reminders');
-        const contentRecord = document.getElementById('content-record');
-        const contentHistory = document.getElementById('content-history');
-        const contentReminders = document.getElementById('content-reminders');
-        const chartTimePeriodSelect = document.getElementById('chart-time-period');
-        const myChartCanvas = document.getElementById('myChart');
-        const startDateInput = document.getElementById('start-date');
-        const endDateInput = document.getElementById('end-date');
-        const printBtn1 = document.getElementById('print-btn1');
-        const bpRemindersContainer = document.getElementById('bp-reminders');
-        const hospitalRemindersDisplay = document.getElementById('hospital-reminders-display');
-        const hospitalAppointmentSelect = document.getElementById('hospital-appointment-select');
-        const hospitalTimeInput = document.getElementById('hospital-time');
-        const hospitalNoteTextarea = document.getElementById('hospital-note');
-        const setHospitalReminderBtn = document.getElementById('set-hospital-reminder-btn');
-        const printableArea = document.getElementById('printable-area');
-        const printDateRange = document.getElementById('print-date-range');
-        const printDataBody = document.getElementById('print-data-body');
-        const historyFilterPeriod = document.getElementById('history-filter-period');
-        const historyDataDisplay = document.getElementById('history-data-display');
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modal-title');
-        const modalMessage = document.getElementById('modal-message');
-        const modalOkBtn = document.getElementById('modal-ok-btn');
-        try {
-            if (!app) {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-            }
-        } catch (e) {
-            console.error("Firebase initialization failed:", e);
-            showStatus("Firebase 初始化失败，请检查配置或网络连接。", true);
-        }
-        const showStatus = (message, isError = false) => {
-            statusMessageDiv.classList.remove('hidden');
-            statusMessageDiv.className = `p-4 rounded-xl text-sm break-words ${isError ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-blue-50 border border-blue-200 text-blue-800'}`;
-            statusMessage.textContent = message;
-        };
-        const showModal = (title, message) => {
-            modalTitle.textContent = title;
-            modalMessage.textContent = message;
-            modal.style.display = 'flex';
-            reminderSound.play();
-        };
-        modalOkBtn.addEventListener('click', () => {
-            modal.style.display = 'none';
-            reminderSound.pause();
-            reminderSound.currentTime = 0;
+  </div>
+
+  <!-- 打印区域 -->
+  <div id="printable-area" class="hidden">
+    <h1 class="text-2xl font-bold mb-4">血压记录报告</h1>
+    <p id="print-date-range" class="text-gray-600 mb-4"></p>
+    <table class="w-full text-left border-collapse">
+      <thead>
+        <tr>
+          <th class="border-b-2 py-2">日期</th>
+          <th class="border-b-2 py-2">时间段</th>
+          <th class="border-b-2 py-2">收缩压 (mmHg)</th>
+          <th class="border-b-2 py-2">舒张压 (mmHg)</th>
+          <th class="border-b-2 py-2">脉搏 (bpm)</th>
+          <th class="border-b-2 py-2">备注</th>
+        </tr>
+      </thead>
+      <tbody id="print-data-body"></tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCpHJVVOQy51sPh6sU3GRotLG1v54IjXmk",
+      authDomain: "gaoxueyajilu.firebaseapp.com",
+      projectId: "gaoxueyajilu",
+      storageBucket: "gaoxueyajilu.firebasestorage.app",
+      messagingSenderId: "902988573811",
+      appId: "1:902988573811:web:00cee1c09af3b9c96b0e06",
+      measurementId: "G-SGN0D6BGJ6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    let userId = null;
+    let allReadings = [];
+    let chartInstance = null;
+
+    const startDateInput = document.getElementById("start-date");
+    const endDateInput = document.getElementById("end-date");
+    const printDataBody = document.getElementById("print-data-body");
+    const printDateRange = document.getElementById("print-date-range");
+    const printBtn = document.getElementById("print-btn");
+    const exportPdfBtn = document.getElementById("export-pdf-btn");
+    const myChartCanvas = document.getElementById("myChart");
+
+    // 更新图表
+    function updateChart(data) {
+      if (chartInstance) chartInstance.destroy();
+      const ctx = myChartCanvas.getContext("2d");
+      chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: data.map(r => r.timestamp.toDate().toLocaleDateString("zh-CN")),
+          datasets: [
+            { label: "收缩压", data: data.map(r => r.systolic), borderColor: "rgb(75,192,192)" },
+            { label: "舒张压", data: data.map(r => r.diastolic), borderColor: "rgb(255,99,132)" },
+            { label: "脉搏", data: data.map(r => r.pulse), borderColor: "rgb(255,159,64)" }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    // 打印
+    printBtn.addEventListener("click", () => {
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+      if (!startDate || !endDate) return alert("请选择开始和结束日期");
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setDate(end.getDate() + 1);
+
+      const filtered = allReadings.filter(r => {
+        if (!r.timestamp) return false;
+        const t = r.timestamp.toDate();
+        return t >= start && t < end;
+      }).sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate());
+
+      printDataBody.innerHTML = "";
+      printDateRange.textContent = `日期范围：${startDate} 至 ${endDate}`;
+
+      if (filtered.length === 0) {
+        printDataBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">没有找到记录</td></tr>';
+      } else {
+        filtered.forEach(r => {
+          const d = r.timestamp.toDate();
+          const dateStr = d.toLocaleDateString("zh-CN");
+          const timeStr = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td class="py-2 border-b">${dateStr} ${timeStr}</td>
+            <td class="py-2 border-b">${r.timePeriod}</td>
+            <td class="py-2 border-b">${r.systolic}</td>
+            <td class="py-2 border-b">${r.diastolic}</td>
+            <td class="py-2 border-b">${r.pulse}</td>
+            <td class="py-2 border-b">${r.note || "无"}</td>
+          `;
+          printDataBody.appendChild(tr);
         });
-        const setButtonLoadingState = (button, textSpan, spinner, isLoading) => {
-            if (isLoading) {
-                button.disabled = true;
-                if (textSpan) textSpan.classList.add('hidden');
-                if (spinner) spinner.style.display = 'block';
-            } else {
-                button.disabled = false;
-                if (textSpan) textSpan.classList.remove('hidden');
-                if (spinner) spinner.style.display = 'none';
-            }
-        };
-        const activateAppTab = (tabId) => {
-            document.querySelectorAll('#app-content .border-b-2').forEach(tab => {
-                tab.classList.remove('border-blue-500', 'text-blue-600');
-                tab.classList.add('border-transparent', 'text-gray-600');
-            });
-            document.getElementById(tabId).classList.add('border-blue-500', 'text-blue-600');
-            document.querySelectorAll('#app-content > div:not(.no-print, .bg-blue-50, .flex)').forEach(content => content.classList.add('hidden'));
-            document.getElementById(`content-${tabId.split('-')[1]}`).classList.remove('hidden');
-        };
-        tabRecord.addEventListener('click', () => activateAppTab('tab-record'));
-        tabHistory.addEventListener('click', () => activateAppTab('tab-history'));
-        tabReminders.addEventListener('click', () => activateAppTab('tab-reminders'));
-        activateAppTab('tab-record');
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                authSection.classList.add('hidden');
-                appContent.classList.remove('hidden');
-                userIdDisplay.textContent = `用户ID: ${userId}`;
-                console.log(`Authentication successful, User ID: ${userId}`);
-                setupRealtimeListener();
-                setupReminderUI();
-            } else {
-                userId = null;
-                authSection.classList.remove('hidden');
-                appContent.classList.add('hidden');
-                console.log("User not authenticated, please log in.");
-                showStatus("请注册或登录您的账户。", false);
-                allReadings = [];
-                if(chartInstance) chartInstance.destroy();
-                clearReminders();
-            }
-        });
-        registerBtn.addEventListener('click', async () => {
-            const username = usernameInput.value.trim();
-            const password = passwordInput.value.trim();
-            usernameError.classList.add('hidden');
-            passwordError.classList.add('hidden');
-            if (!username) {
-                usernameError.textContent = "用户名不能为空。";
-                usernameError.classList.remove('hidden');
-                return;
-            }
-            if (!password || password.length < 6) {
-                passwordError.textContent = "密码必须至少为6位。";
-                passwordError.classList.remove('hidden');
-                return;
-            }
-            const email = `${username}@your-app-domain.com`;
-            try {
-                setButtonLoadingState(registerBtn, registerBtnText, registerBtnSpinner, true);
-                loginBtn.disabled = true;
-                showStatus("正在注册，请稍候...", false);
-                await createUserWithEmailAndPassword(auth, email, password);
-            } catch (error) {
-                console.error("Registration failed:", error);
-                let errorMessage = "注册失败，请重试。";
-                if (error.code === 'auth/email-already-in-use') {
-                    errorMessage = "此用户名已被使用，请更换一个。";
-                } else if (error.code === 'auth/invalid-email') {
-                    errorMessage = "无效的用户名格式。";
-                } else if (error.code === 'auth/weak-password') {
-                    errorMessage = "密码过于简单，请使用更强的密码。";
-                }
-                showStatus(errorMessage, true);
-            } finally {
-                setButtonLoadingState(registerBtn, registerBtnText, registerBtnSpinner, false);
-                loginBtn.disabled = false;
-            }
-        });
-        loginBtn.addEventListener('click', async () => {
-            const username = usernameInput.value.trim();
-            const password = passwordInput.value.trim();
-            usernameError.classList.add('hidden');
-            passwordError.classList.add('hidden');
-            if (!username) {
-                usernameError.textContent = "请输入用户名。";
-                usernameError.classList.remove('hidden');
-                return;
-            }
-            if (!password) {
-                passwordError.textContent = "请输入密码。";
-                passwordError.classList.remove('hidden');
-                return;
-            }
-            const email = `${username}@your-app-domain.com`;
-            try {
-                setButtonLoadingState(loginBtn, loginBtnText, loginBtnSpinner, true);
-                registerBtn.disabled = true;
-                showStatus("正在登录，请稍候...", false);
-                await signInWithEmailAndPassword(auth, email, password);
-            } catch (error) {
-                console.error("Login failed:", error);
-                showStatus("登录失败。用户名或密码不正确。", true);
-            } finally {
-                setButtonLoadingState(loginBtn, loginBtnText, loginBtnSpinner, false);
-                registerBtn.disabled = false;
-            }
-        });
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await signOut(auth);
-            } catch (error) {
-                console.error("Logout failed:", error);
-                showStatus("退出登录失败，请重试。", true);
-            }
-        });
-        recordBtn.addEventListener('click', async () => {
-            const systolic = parseInt(systolicInput.value, 10);
-            const diastolic = parseInt(diastolicInput.value, 10);
-            const pulse = parseInt(pulseInput.value, 10);
-            const note = noteTextarea.value.trim();
-            const timePeriod = recordTimeSelect.value;
-            if (isNaN(systolic) || isNaN(diastolic) || isNaN(pulse) || systolic <= 0 || diastolic <= 0 || pulse <= 0) {
-                showStatus("请输入有效的血压值和脉搏。", true);
-                return;
-            }
-            if (!userId) {
-                showStatus("用户未登录，无法保存数据。", true);
-                return;
-            }
-            setButtonLoadingState(recordBtn, document.getElementById('record-btn-text'), document.getElementById('record-btn-spinner'), true);
-            try {
-                const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
-                await addDoc(collection(db, readingsPath), {
-                    systolic: systolic,
-                    diastolic: diastolic,
-                    pulse: pulse,
-                    note: note,
-                    timePeriod: timePeriod,
-                    timestamp: serverTimestamp()
-                });
-                systolicInput.value = '';
-                diastolicInput.value = '';
-                pulseInput.value = '';
-                noteTextarea.value = '';
-                showStatus("血压记录成功。", false);
-                console.log("Blood pressure recorded successfully.");
-            } catch (e) {
-                console.error("Recording failed:", e);
-                showStatus("记录失败，请重试。", true);
-            } finally {
-                setButtonLoadingState(recordBtn, document.getElementById('record-btn-text'), document.getElementById('record-btn-spinner'), false);
-            }
-        });
-        function setupRealtimeListener() {
-            if (!userId) {
-                console.error("User ID is not defined, cannot set up listener.");
-                return;
-            }
-            if(loadingSpinner) {
-                loadingSpinner.style.display = 'block';
-            }
-            const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
-            const q = query(collection(db, readingsPath), orderBy("timestamp", "desc"));
-            onSnapshot(q, (querySnapshot) => {
-                if(loadingSpinner) {
-                    loadingSpinner.style.display = 'none';
-                }
-                allReadings = [];
-                if (!querySnapshot.empty) {
-                    querySnapshot.forEach((doc) => {
-                        allReadings.push({ id: doc.id, ...doc.data() });
-                    });
-                }
-                updateChart(chartTimePeriodSelect.value);
-                updateHistoryDisplay();
-            }, (error) => {
-                console.error("Listener failed to fetch data:", error);
-                if(loadingSpinner) {
-                    loadingSpinner.style.display = 'none';
-                }
-                showStatus("获取数据失败，请检查网络连接。", true);
-            });
-        }
-        const updateChart = (timePeriod) => {
-            let dataToShow = allReadings;
-            if (timePeriod !== 'all') {
-                dataToShow = allReadings.filter(r => r.timePeriod === timePeriod);
-            }
-            const labels = dataToShow.map(r => r.timestamp ? r.timestamp.toDate().toLocaleString() : 'N/A');
-            const systolicData = dataToShow.map(r => r.systolic);
-            const diastolicData = dataToShow.map(r => r.diastolic);
-            const pulseData = dataToShow.map(r => r.pulse);
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
-            const ctx = myChartCanvas.getContext('2d');
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: '收缩压 (mmHg)',
-                        data: systolicData,
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
-                    }, {
-                        label: '舒张压 (mmHg)',
-                        data: diastolicData,
-                        borderColor: 'rgb(255, 99, 132)',
-                        tension: 0.1
-                    }, {
-                        label: '脉搏 (bpm)',
-                        data: pulseData,
-                        borderColor: 'rgb(255, 159, 64)',
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    if (context.parsed.y !== null) {
-                                        label += context.parsed.y;
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        };
-        chartTimePeriodSelect.addEventListener('change', () => updateChart(chartTimePeriodSelect.value));
-        const updateHistoryDisplay = () => {
-            const filterPeriod = historyFilterPeriod.value;
-            const now = new Date();
-            let cutoffDate = new Date();
-            switch (filterPeriod) {
-                case 'day':
-                    cutoffDate.setDate(now.getDate() - 1);
-                    break;
-                case 'week':
-                    cutoffDate.setDate(now.getDate() - 7);
-                    break;
-                case 'month':
-                    cutoffDate.setMonth(now.getMonth() - 1);
-                    break;
-                default:
-                    cutoffDate = new Date(0);
-                    break;
-            }
-            const filteredHistory = allReadings.filter(r => r.timestamp && r.timestamp.toDate() > cutoffDate);
-            historyDataDisplay.innerHTML = '';
-            if (filteredHistory.length === 0) {
-                historyDataDisplay.innerHTML = '<p class="text-gray-500 text-sm">没有找到符合条件的记录。</p>';
-                return;
-            }
-            filteredHistory.forEach(reading => {
-                const date = reading.timestamp.toDate();
-                const displayDate = date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                const displayTime = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-                const div = document.createElement('div');
-                div.className = 'flex flex-col p-3 bg-white rounded-xl shadow-sm space-y-1';
-                div.innerHTML = `
-                    <p class="font-semibold text-gray-800">${displayDate} ${displayTime}</p>
-                    <p class="text-xs text-gray-500">${reading.timePeriod}：收缩压 ${reading.systolic} mmHg，舒张压 ${reading.diastolic} mmHg，脉搏 ${reading.pulse} bpm</p>
-                    ${reading.note ? `<p class="text-xs text-gray-600 italic">备注: ${reading.note}</p>` : ''}
-                `;
-                historyDataDisplay.appendChild(div);
-            });
-        };
-        historyFilterPeriod.addEventListener('change', updateHistoryDisplay);
-        const clearReminders = () => {
-            for(let key in reminderTimeouts) {
-                clearTimeout(reminderTimeouts[key]);
-            }
-            reminderTimeouts = {};
-            localStorage.removeItem('bpReminders');
-            localStorage.removeItem('hospitalReminders');
-        };
-        const setupReminderUI = () => {
-            const savedBPReminders = localStorage.getItem('bpReminders');
-            if (savedBPReminders) {
-                bpReminders = JSON.parse(savedBPReminders);
-                updateBPRemindersDisplay();
-            } else {
-                bpReminders = {};
-                updateBPRemindersDisplay();
-            }
-            const savedHospitalReminders = localStorage.getItem('hospitalReminders');
-            if (savedHospitalReminders) {
-                hospitalReminders = JSON.parse(savedHospitalReminders);
-                updateHospitalRemindersDisplay();
-            }
-            setHospitalReminderBtn.addEventListener('click', () => {
-                const selectedAppointment = hospitalAppointmentSelect.value;
-                const time = hospitalTimeInput.value;
-                const note = hospitalNoteTextarea.value;
-                if (!time) {
-                    showModal("错误", "请选择预约时间。");
-                    return;
-                }
-                const reminderMessage = `预约 ${selectedAppointment}: ${note || '没有备注'}`;
-                const reminderId = `hospital-${selectedAppointment}`;
-                const reminderTime = new Date(time).getTime();
-                hospitalReminders[reminderId] = { time, note, id: reminderId };
-                localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
-                scheduleReminder(reminderId, reminderTime, reminderMessage);
-                updateHospitalRemindersDisplay();
-                showModal("成功", `预约 ${selectedAppointment} 已设置！`);
-            });
-        };
-        const updateBPRemindersDisplay = () => {
-            bpRemindersContainer.innerHTML = '';
-            const addForm = document.createElement('div');
-            addForm.className = 'flex items-center space-x-2';
-            addForm.innerHTML = `
-                <input type="time" id="new-bp-time" class="px-2 py-1 border border-gray-300 rounded-md">
-                <button id="set-new-bp-reminder-btn" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
-            `;
-            bpRemindersContainer.appendChild(addForm);
-            document.getElementById('set-new-bp-reminder-btn').addEventListener('click', () => {
-                const timeInput = document.getElementById('new-bp-time');
-                const time = timeInput.value;
-                if (time) {
-                    const reminderId = `bp-${Date.now()}`;
-                    bpReminders[reminderId] = { time, id: reminderId };
-                    localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
-                    scheduleReminder(reminderId, null, `是时候测量血压了！`, time);
-                    updateBPRemindersDisplay();
-                } else {
-                    showModal("错误", "请选择一个时间。");
-                }
-            });
-            for (const key in bpReminders) {
-                const reminder = bpReminders[key];
-                const div = document.createElement('div');
-                div.className = 'flex items-center justify-between p-3 bg-white rounded-xl shadow';
-                div.innerHTML = `
-                    <p class="font-semibold">${reminder.time}</p>
-                    <button class="delete-bp-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
-                `;
-                bpRemindersContainer.appendChild(div);
-                scheduleReminder(reminder.id, null, `是时候测量血压了！`, reminder.time);
-            }
-            document.querySelectorAll('.delete-bp-reminder-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const idToDelete = e.target.dataset.id;
-                    showModal("确认删除", "确定要删除此提醒吗？");
-                    document.getElementById('modal-ok-btn').onclick = () => {
-                        modal.style.display = 'none';
-                        delete bpReminders[idToDelete];
-                        localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
-                        clearTimeout(reminderTimeouts[idToDelete]);
-                        delete reminderTimeouts[idToDelete];
-                        updateBPRemindersDisplay();
-                    };
-                });
-            });
-        };
-        const updateHospitalRemindersDisplay = () => {
-            hospitalRemindersDisplay.innerHTML = '';
-            const sortedKeys = Object.keys(hospitalReminders).sort();
-            if (sortedKeys.length === 0) {
-                hospitalRemindersDisplay.innerHTML = '<p class="text-gray-500 text-sm">暂无设置的预约提醒。</p>';
-                return;
-            }
-            sortedKeys.forEach(key => {
-                const reminder = hospitalReminders[key];
-                const displayTime = new Date(reminder.time).toLocaleString();
-                const div = document.createElement('div');
-                div.className = 'flex items-center justify-between p-3 bg-white rounded-xl shadow';
-                div.innerHTML = `
-                    <div class="flex-grow space-y-1">
-                        <p class="font-semibold">预约 ${key.split('-')[1]}</p>
-                        <p class="text-xs text-gray-500">${displayTime}</p>
-                        <p class="text-xs text-gray-500 italic">${reminder.note}</p>
-                    </div>
-                    <button class="delete-hospital-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
-                `;
-                hospitalRemindersDisplay.appendChild(div);
-                const reminderTime = new Date(reminder.time).getTime();
-                scheduleReminder(reminder.id, reminderTime, `预约 ${key.split('-')[1]}: ${reminder.note || '没有备注'}`);
-            });
-            document.querySelectorAll('.delete-hospital-reminder-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const idToDelete = e.target.dataset.id;
-                    showModal("确认删除", `确定要删除此预约提醒吗？`);
-                    document.getElementById('modal-ok-btn').onclick = () => {
-                        modal.style.display = 'none';
-                        delete hospitalReminders[idToDelete];
-                        localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
-                        clearTimeout(reminderTimeouts[idToDelete]);
-                        delete reminderTimeouts[idToDelete];
-                        updateHospitalRemindersDisplay();
-                    };
-                });
-            });
-        };
-        const scheduleReminder = (id, timestamp, message, timeString) => {
-            if (reminderTimeouts[id]) {
-                clearTimeout(reminderTimeouts[id]);
-            }
-            let reminderTime = new Date();
-            if (timestamp) {
-                reminderTime.setTime(timestamp);
-            } else if (timeString) {
-                const [hours, minutes] = timeString.split(':').map(Number);
-                reminderTime.setHours(hours, minutes, 0, 0);
-            } else {
-                return;
-            }
-            const now = new Date();
-            let timeUntilReminder = reminderTime.getTime() - now.getTime();
-            if (timeUntilReminder < 0 && !timestamp) {
-                timeUntilReminder += 24 * 60 * 60 * 1000;
-            } else if (timeUntilReminder < 0 && timestamp) {
-                return;
-            }
-            const timeoutId = setTimeout(() => {
-                showModal("提醒", message);
-                if (id.startsWith('bp-')) {
-                    delete bpReminders[id];
-                    localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
-                    updateBPRemindersDisplay();
-                } else if (id.startsWith('hospital-')) {
-                    delete hospitalReminders[id];
-                    localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
-                    updateHospitalRemindersDisplay();
-                }
-                delete reminderTimeouts[id];
-            }, timeUntilReminder);
-            reminderTimeouts[id] = timeoutId;
-        };
-        const printBtn = document.getElementById('print-btn');
-        printBtn.addEventListener('click', async () => {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-            if (!startDate || !endDate) {
-                showModal("错误", "请选择开始和结束日期。");
-                return;
-            }
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            end.setDate(end.getDate() + 1);
-            const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
-            const q = query(
-                collection(db, readingsPath),
-                where('timestamp', '>=', start),
-                where('timestamp', '<', end),
-                orderBy('timestamp', 'asc')
-            );
-            try {
-                const querySnapshot = await getDocs(q);
-                printDataBody.innerHTML = '';
-                printDateRange.textContent = `日期范围：${startDate} 至 ${endDate}`;
-                if (querySnapshot.empty) {
-                    printDataBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">没有找到该日期范围内的记录。</td></tr>';
-                } else {
-                    querySnapshot.forEach(doc => {
-                        const reading = doc.data();
-                        const date = reading.timestamp.toDate();
-                        const dateString = date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                        const timeString = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td class="py-2 border-b">${dateString} ${timeString}</td>
-                            <td class="py-2 border-b">${reading.timePeriod}</td>
-                            <td class="py-2 border-b">${reading.systolic} mmHg</td>
-                            <td class="py-2 border-b">${reading.diastolic} mmHg</td>
-                            <td class="py-2 border-b">${reading.pulse} bpm</td>
-                            <td class="py-2 border-b">${reading.note || '无'}</td>
-                        `;
-                        printDataBody.appendChild(tr);
-                    });
-                }
-                window.print();
-            } catch (e) {
-                console.error("Failed to fetch print data:", e);
-                showModal("错误", "获取打印数据失败，请重试。");
-            }
-        });
-    </script>
+      }
+      window.print();
+    });
+
+    // 导出 PDF（带表格 + 图表）
+    exportPdfBtn.addEventListener("click", async () => {
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+      if (!startDate || !endDate) return alert("请选择开始和结束日期");
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setDate(end.getDate() + 1);
+
+      const filtered = allReadings.filter(r => {
+        if (!r.timestamp) return false;
+        const t = r.timestamp.toDate();
+        return t >= start && t < end;
+      }).sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate());
+
+      if (filtered.length === 0) return alert("没有找到该日期范围内的记录");
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(16);
+      doc.text("血压记录报告", 14, 20);
+      doc.setFontSize(12);
+      doc.text(`日期范围：${startDate} 至 ${endDate}`, 14, 30);
+
+      // 表格
+      const tableData = filtered.map(r => {
+        const d = r.timestamp.toDate();
+        return [
+          d.toLocaleDateString("zh-CN"),
+          d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+          r.timePeriod,
+          r.systolic,
+          r.diastolic,
+          r.pulse,
+          r.note || "无"
+        ];
+      });
+      doc.autoTable({
+        head: [["日期", "时间", "时间段", "收缩压", "舒张压", "脉搏", "备注"]],
+        body: tableData,
+        startY: 40,
+        theme: "grid",
+      });
+
+      // 图表截图
+      if (chartInstance) {
+        const imgData = myChartCanvas.toDataURL("image/png", 1.0);
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.addImage(imgData, "PNG", 14, finalY, 180, 90);
+      }
+
+      doc.save(`血压报告_${startDate}_至_${endDate}.pdf`);
+    });
+
+    // 实时监听
+    function setupRealtimeListener() {
+      if (!userId) return;
+      const readingsPath = `/artifacts/gaoxueyajilu/users/${userId}/readings`;
+      const q = query(collection(db, readingsPath), orderBy("timestamp", "desc"));
+      onSnapshot(q, snapshot => {
+        allReadings = [];
+        snapshot.forEach(doc => allReadings.push({ id: doc.id, ...doc.data() }));
+        updateChart(allReadings);
+      });
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        userId = user.uid;
+        setupRealtimeListener();
+      } else {
+        userId = null;
+        allReadings = [];
+        if (chartInstance) chartInstance.destroy();
+      }
+    });
+  </script>
 </body>
 </html>
-
-
