@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>每日血压记录应用增强版</title>
-    <link rel="icon" href="data:,">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -360,6 +359,7 @@
         const myChartCanvas = document.getElementById('myChart');
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
+        const printBtn = document.getElementById('print-btn');
         const bpRemindersContainer = document.getElementById('bp-reminders');
         const hospitalRemindersDisplay = document.getElementById('hospital-reminders-display');
         const hospitalAppointmentSelect = document.getElementById('hospital-appointment-select');
@@ -387,7 +387,7 @@
         }
         const showStatus = (message, isError = false) => {
             statusMessageDiv.classList.remove('hidden');
-            statusMessageDiv.className = p-4 rounded-xl text-sm break-words ${isError ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-blue-50 border border-blue-200 text-blue-800'};
+            statusMessageDiv.className = `p-4 rounded-xl text-sm break-words ${isError ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-blue-50 border border-blue-200 text-blue-800'}`;
             statusMessage.textContent = message;
         };
         const showModal = (title, message) => {
@@ -419,7 +419,7 @@
             });
             document.getElementById(tabId).classList.add('border-blue-500', 'text-blue-600');
             document.querySelectorAll('#app-content > div:not(.no-print, .bg-blue-50, .flex)').forEach(content => content.classList.add('hidden'));
-            document.getElementById(content-${tabId.split('-')[1]}).classList.remove('hidden');
+            document.getElementById(`content-${tabId.split('-')[1]}`).classList.remove('hidden');
         };
         tabRecord.addEventListener('click', () => activateAppTab('tab-record'));
         tabHistory.addEventListener('click', () => activateAppTab('tab-history'));
@@ -430,8 +430,8 @@
                 userId = user.uid;
                 authSection.classList.add('hidden');
                 appContent.classList.remove('hidden');
-                userIdDisplay.textContent = 用户ID: ${userId};
-                console.log(Authentication successful, User ID: ${userId});
+                userIdDisplay.textContent = `用户ID: ${userId}`;
+                console.log(`Authentication successful, User ID: ${userId}`);
                 setupRealtimeListener();
                 setupReminderUI();
             } else {
@@ -460,7 +460,7 @@
                 passwordError.classList.remove('hidden');
                 return;
             }
-            const email = ${username}@your-app-domain.com;
+            const email = `${username}@your-app-domain.com`;
             try {
                 setButtonLoadingState(registerBtn, registerBtnText, registerBtnSpinner, true);
                 loginBtn.disabled = true;
@@ -497,7 +497,7 @@
                 passwordError.classList.remove('hidden');
                 return;
             }
-            const email = ${username}@your-app-domain.com;
+            const email = `${username}@your-app-domain.com`;
             try {
                 setButtonLoadingState(loginBtn, loginBtnText, loginBtnSpinner, true);
                 registerBtn.disabled = true;
@@ -505,7 +505,15 @@
                 await signInWithEmailAndPassword(auth, email, password);
             } catch (error) {
                 console.error("Login failed:", error);
-                showStatus("登录失败。用户名或密码不正确。", true);
+                let errorMessage = "登录失败。用户名或密码不正确。";
+                if (error.code === 'auth/user-not-found') {
+                    errorMessage = "登录失败：用户不存在。请检查用户名或先注册。";
+                } else if (error.code === 'auth/wrong-password') {
+                    errorMessage = "登录失败：密码不正确。";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = "登录失败：无效的用户名格式。";
+                }
+                showStatus(errorMessage, true);
             } finally {
                 setButtonLoadingState(loginBtn, loginBtnText, loginBtnSpinner, false);
                 registerBtn.disabled = false;
@@ -535,7 +543,7 @@
             }
             setButtonLoadingState(recordBtn, document.getElementById('record-btn-text'), document.getElementById('record-btn-spinner'), true);
             try {
-                const readingsPath = /artifacts/${appId}/users/${userId}/readings;
+                const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
                 await addDoc(collection(db, readingsPath), {
                     systolic: systolic,
                     diastolic: diastolic,
@@ -565,7 +573,7 @@
             if(loadingSpinner) {
                 loadingSpinner.style.display = 'block';
             }
-            const readingsPath = /artifacts/${appId}/users/${userId}/readings;
+            const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
             const q = query(collection(db, readingsPath), orderBy("timestamp", "desc"));
             onSnapshot(q, (querySnapshot) => {
                 if(loadingSpinner) {
@@ -679,11 +687,11 @@
                 const displayTime = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
                 const div = document.createElement('div');
                 div.className = 'flex flex-col p-3 bg-white rounded-xl shadow-sm space-y-1';
-                div.innerHTML = 
+                div.innerHTML = `
                     <p class="font-semibold text-gray-800">${displayDate} ${displayTime}</p>
                     <p class="text-xs text-gray-500">${reading.timePeriod}：收缩压 ${reading.systolic} mmHg，舒张压 ${reading.diastolic} mmHg，脉搏 ${reading.pulse} bpm</p>
-                    ${reading.note ? <p class="text-xs text-gray-600 italic">备注: ${reading.note}</p> : ''}
-                ;
+                    ${reading.note ? `<p class="text-xs text-gray-600 italic">备注: ${reading.note}</p>` : ''}
+                `;
                 historyDataDisplay.appendChild(div);
             });
         };
@@ -718,33 +726,33 @@
                     showModal("错误", "请选择预约时间。");
                     return;
                 }
-                const reminderMessage = 预约 ${selectedAppointment}: ${note || '没有备注'};
-                const reminderId = hospital-${selectedAppointment};
+                const reminderMessage = `预约 ${selectedAppointment}: ${note || '没有备注'}`;
+                const reminderId = `hospital-${selectedAppointment}`;
                 const reminderTime = new Date(time).getTime();
                 hospitalReminders[reminderId] = { time, note, id: reminderId };
                 localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
                 scheduleReminder(reminderId, reminderTime, reminderMessage);
                 updateHospitalRemindersDisplay();
-                showModal("成功", 预约 ${selectedAppointment} 已设置！);
+                showModal("成功", `预约 ${selectedAppointment} 已设置！`);
             });
         };
         const updateBPRemindersDisplay = () => {
             bpRemindersContainer.innerHTML = '';
             const addForm = document.createElement('div');
             addForm.className = 'flex items-center space-x-2';
-            addForm.innerHTML = 
+            addForm.innerHTML = `
                 <input type="time" id="new-bp-time" class="px-2 py-1 border border-gray-300 rounded-md">
                 <button id="set-new-bp-reminder-btn" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
-            ;
+            `;
             bpRemindersContainer.appendChild(addForm);
             document.getElementById('set-new-bp-reminder-btn').addEventListener('click', () => {
                 const timeInput = document.getElementById('new-bp-time');
                 const time = timeInput.value;
                 if (time) {
-                    const reminderId = bp-${Date.now()};
+                    const reminderId = `bp-${Date.now()}`;
                     bpReminders[reminderId] = { time, id: reminderId };
                     localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
-                    scheduleReminder(reminderId, null, 是时候测量血压了！, time);
+                    scheduleReminder(reminderId, null, `是时候测量血压了！`, time);
                     updateBPRemindersDisplay();
                 } else {
                     showModal("错误", "请选择一个时间。");
@@ -754,12 +762,12 @@
                 const reminder = bpReminders[key];
                 const div = document.createElement('div');
                 div.className = 'flex items-center justify-between p-3 bg-white rounded-xl shadow';
-                div.innerHTML = 
+                div.innerHTML = `
                     <p class="font-semibold">${reminder.time}</p>
                     <button class="delete-bp-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
-                ;
+                `;
                 bpRemindersContainer.appendChild(div);
-                scheduleReminder(reminder.id, null, 是时候测量血压了！, reminder.time);
+                scheduleReminder(reminder.id, null, `是时候测量血压了！`, reminder.time);
             }
             document.querySelectorAll('.delete-bp-reminder-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -788,22 +796,22 @@
                 const displayTime = new Date(reminder.time).toLocaleString();
                 const div = document.createElement('div');
                 div.className = 'flex items-center justify-between p-3 bg-white rounded-xl shadow';
-                div.innerHTML = 
+                div.innerHTML = `
                     <div class="flex-grow space-y-1">
                         <p class="font-semibold">预约 ${key.split('-')[1]}</p>
                         <p class="text-xs text-gray-500">${displayTime}</p>
                         <p class="text-xs text-gray-500 italic">${reminder.note}</p>
                     </div>
                     <button class="delete-hospital-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
-                ;
+                `;
                 hospitalRemindersDisplay.appendChild(div);
                 const reminderTime = new Date(reminder.time).getTime();
-                scheduleReminder(reminder.id, reminderTime, 预约 ${key.split('-')[1]}: ${reminder.note || '没有备注'});
+                scheduleReminder(reminder.id, reminderTime, `预约 ${key.split('-')[1]}: ${reminder.note || '没有备注'}`);
             });
             document.querySelectorAll('.delete-hospital-reminder-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const idToDelete = e.target.dataset.id;
-                    showModal("确认删除", 确定要删除此预约提醒吗？);
+                    showModal("确认删除", `确定要删除此预约提醒吗？`);
                     document.getElementById('modal-ok-btn').onclick = () => {
                         modal.style.display = 'none';
                         delete hospitalReminders[idToDelete];
@@ -851,56 +859,53 @@
             reminderTimeouts[id] = timeoutId;
         };
         const printBtn = document.getElementById('print-btn');
-printBtn.addEventListener('click', () => {
-    const startDate = startDateInput.value;
-    const endDate = endDateInput.value;
-    if (!startDate || !endDate) {
-        showModal("错误", "请选择开始和结束日期。");
-        return;
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setDate(end.getDate() + 1);
-
-    // 用 allReadings 过滤
-    const filtered = allReadings.filter(r => {
-        if (!r.timestamp) return false;
-        const t = r.timestamp.toDate();
-        return t >= start && t < end;
-    }).sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate());
-
-    printDataBody.innerHTML = '';
-    printDateRange.textContent = `日期范围：${startDate} 至 ${endDate}`;
-
-    if (filtered.length === 0) {
-        printDataBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">没有找到该日期范围内的记录。</td></tr>';
-    } else {
-        filtered.forEach(reading => {
-            const date = reading.timestamp.toDate();
-            const dateString = date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-            const timeString = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="py-2 border-b">${dateString} ${timeString}</td>
-                <td class="py-2 border-b">${reading.timePeriod}</td>
-                <td class="py-2 border-b">${reading.systolic} mmHg</td>
-                <td class="py-2 border-b">${reading.diastolic} mmHg</td>
-                <td class="py-2 border-b">${reading.pulse} bpm</td>
-                <td class="py-2 border-b">${reading.note || '无'}</td>
-            `;
-            printDataBody.appendChild(tr);
+        printBtn.addEventListener('click', async () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+            if (!startDate || !endDate) {
+                showModal("错误", "请选择开始和结束日期。");
+                return;
+            }
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            end.setDate(end.getDate() + 1);
+            const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
+            const q = query(
+                collection(db, readingsPath),
+                where('timestamp', '>=', start),
+                where('timestamp', '<', end),
+                orderBy('timestamp', 'asc')
+            );
+            try {
+                const querySnapshot = await getDocs(q);
+                printDataBody.innerHTML = '';
+                printDateRange.textContent = `日期范围：${startDate} 至 ${endDate}`;
+                if (querySnapshot.empty) {
+                    printDataBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">没有找到该日期范围内的记录。</td></tr>';
+                } else {
+                    querySnapshot.forEach(doc => {
+                        const reading = doc.data();
+                        const date = reading.timestamp.toDate();
+                        const dateString = date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                        const timeString = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="py-2 border-b">${dateString} ${timeString}</td>
+                            <td class="py-2 border-b">${reading.timePeriod}</td>
+                            <td class="py-2 border-b">${reading.systolic} mmHg</td>
+                            <td class="py-2 border-b">${reading.diastolic} mmHg</td>
+                            <td class="py-2 border-b">${reading.pulse} bpm</td>
+                            <td class="py-2 border-b">${reading.note || '无'}</td>
+                        `;
+                        printDataBody.appendChild(tr);
+                    });
+                }
+                window.print();
+            } catch (e) {
+                console.error("Failed to fetch print data:", e);
+                showModal("错误", "获取打印数据失败，请重试。");
+            }
         });
-    }
-
-    window.print();
-});
-    }
-
-    window.print();
-});
     </script>
 </body>
 </html>
-
-
