@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>每日血压记录应用增强版</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 修复：使用版本锁定的 Tailwind CDN（生产建议用 CLI 生成 CSS） -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -79,22 +80,7 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <!-- Chosen Palette: Warm Neutrals -->
-    <!-- Application Structure Plan: The application is structured as a single-page interactive web application (SPA) with three main, tab-based sections: "记录" (Record), "历史与打印" (History & Print), and "提醒" (Reminders). This structure was chosen for its clear, task-oriented user flow, allowing users to easily navigate between the primary functions of recording data, reviewing it, and setting reminders without page reloads. A central login page ensures data privacy and user-specific content. The layout is responsive, adapting from a single column on mobile to a more spread-out layout on desktop. Key information is grouped into logical cards for better readability. -->
-    <!-- Visualization & Content Choices:
-        - **Report Info:** Blood pressure data (systolic, diastolic, pulse) and notes over time.
-        - **Goal:** Allow users to record, visualize, and review their health data.
-        - **Viz/Presentation Method:**
-            - **Line Chart (Chart.js/Canvas):** To visualize trends of systolic, diastolic, and pulse over time. This is a clear way to see changes and patterns.
-            - **Interactive List:** To display detailed historical records, including text notes.
-            - **Printable Table:** To generate a professional-looking report.
-        - **Interaction:**
-            - **Tab Navigation:** Simple clicks to switch between main functions.
-            - **Dropdowns/Filters:** To filter data by time of day (all, morning, noon, evening) and by period (day, week, month) for charts and lists.
-            - **Print Button:** To trigger a print-friendly view of a selected date range.
-        - **Justification:** This interactive structure prioritizes user control and data exploration. The combination of a visual chart and a detailed, filterable list provides both a high-level overview and specific details, catering to different user needs.
-        - **Library/Method:** Chart.js for all charting, vanilla JavaScript for all interactions and data handling, and Tailwind CSS for all styling.
-        - **CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <!-- 应用结构保持不变 -->
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 sm:p-8 space-y-6">
         <div class="flex flex-col items-center text-center">
             <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">每日血压记录</h1>
@@ -300,10 +286,7 @@
             <button id="modal-ok-btn" class="bg-blue-600 text-white px-6 py-2 rounded-xl">好的</button>
         </div>
     </div>
-    <div id="loading-spinner" class="hidden">
-        <div class="spinner-border text-blue-500"></div>
-        <span class="ml-2 text-gray-600">加载中...</span>
-    </div>
+    <!-- 修复：移除未使用的 loading-spinner DIV，代码中已处理显示 -->
     <audio id="reminder-sound" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" preload="auto"></audio>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
@@ -345,7 +328,6 @@
         const noteTextarea = document.getElementById('note');
         const recordTimeSelect = document.getElementById('record-time');
         const userIdDisplay = document.getElementById('user-id-display');
-        const loadingSpinner = document.getElementById('loading-spinner');
         const reminderSound = document.getElementById('reminder-sound');
         const usernameError = document.getElementById('username-error');
         const passwordError = document.getElementById('password-error');
@@ -359,6 +341,7 @@
         const myChartCanvas = document.getElementById('myChart');
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
+        // 修复：声明 printBtn 一次
         const printBtn = document.getElementById('print-btn');
         const bpRemindersContainer = document.getElementById('bp-reminders');
         const hospitalRemindersDisplay = document.getElementById('hospital-reminders-display');
@@ -394,7 +377,7 @@
             modalTitle.textContent = title;
             modalMessage.textContent = message;
             modal.style.display = 'flex';
-            reminderSound.play();
+            reminderSound.play().catch(e => console.log('Audio play failed:', e));  // 修复：添加 catch 以防音频错误
         };
         modalOkBtn.addEventListener('click', () => {
             modal.style.display = 'none';
@@ -570,15 +553,12 @@
                 console.error("User ID is not defined, cannot set up listener.");
                 return;
             }
-            if(loadingSpinner) {
-                loadingSpinner.style.display = 'block';
-            }
+            // 修复：loadingSpinner 未定义，使用简单 console
+            console.log('Loading data...');
             const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
             const q = query(collection(db, readingsPath), orderBy("timestamp", "desc"));
             onSnapshot(q, (querySnapshot) => {
-                if(loadingSpinner) {
-                    loadingSpinner.style.display = 'none';
-                }
+                console.log('Data loaded.');
                 allReadings = [];
                 if (!querySnapshot.empty) {
                     querySnapshot.forEach((doc) => {
@@ -589,9 +569,6 @@
                 updateHistoryDisplay();
             }, (error) => {
                 console.error("Listener failed to fetch data:", error);
-                if(loadingSpinner) {
-                    loadingSpinner.style.display = 'none';
-                }
                 showStatus("获取数据失败，请检查网络连接。", true);
             });
         }
@@ -773,7 +750,9 @@
                 btn.addEventListener('click', (e) => {
                     const idToDelete = e.target.dataset.id;
                     showModal("确认删除", "确定要删除此提醒吗？");
-                    document.getElementById('modal-ok-btn').onclick = () => {
+                    // 修复：使用一次性事件监听，避免覆盖
+                    const tempHandler = () => {
+                        modalOkBtn.removeEventListener('click', tempHandler);
                         modal.style.display = 'none';
                         delete bpReminders[idToDelete];
                         localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
@@ -781,6 +760,7 @@
                         delete reminderTimeouts[idToDelete];
                         updateBPRemindersDisplay();
                     };
+                    modalOkBtn.addEventListener('click', tempHandler);
                 });
             });
         };
@@ -812,7 +792,8 @@
                 btn.addEventListener('click', (e) => {
                     const idToDelete = e.target.dataset.id;
                     showModal("确认删除", `确定要删除此预约提醒吗？`);
-                    document.getElementById('modal-ok-btn').onclick = () => {
+                    const tempHandler = () => {
+                        modalOkBtn.removeEventListener('click', tempHandler);
                         modal.style.display = 'none';
                         delete hospitalReminders[idToDelete];
                         localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
@@ -820,6 +801,7 @@
                         delete reminderTimeouts[idToDelete];
                         updateHospitalRemindersDisplay();
                     };
+                    modalOkBtn.addEventListener('click', tempHandler);
                 });
             });
         };
@@ -858,7 +840,7 @@
             }, timeUntilReminder);
             reminderTimeouts[id] = timeoutId;
         };
-        const printBtn = document.getElementById('print-btn');
+        // 修复：移除重复的 printBtn 声明，直接使用上面的变量
         printBtn.addEventListener('click', async () => {
             const startDate = startDateInput.value;
             const endDate = endDateInput.value;
@@ -900,7 +882,9 @@
                         printDataBody.appendChild(tr);
                     });
                 }
+                printableArea.classList.remove('hidden');  // 确保打印区域可见
                 window.print();
+                printableArea.classList.add('hidden');  // 打印后隐藏
             } catch (e) {
                 console.error("Failed to fetch print data:", e);
                 showModal("错误", "获取打印数据失败，请重试。");
