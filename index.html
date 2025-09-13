@@ -1,8 +1,6 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh">
 <head>
- <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icons/icon-192x192.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>每日血压记录应用增强版</title>
@@ -27,9 +25,6 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        #recaptcha-container {
-            margin-top: 1rem;
-        }
         @media print {
             body * {
                 visibility: hidden;
@@ -48,7 +43,6 @@
                 display: none !important;
             }
         }
-        /* 自定义模态框样式 */
         .modal {
             display: none;
             position: fixed;
@@ -70,16 +64,42 @@
             text-align: center;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            max-height: 400px;
+            margin: auto;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The application is structured as a single-page interactive web application (SPA) with three main, tab-based sections: "记录" (Record), "历史与打印" (History & Print), and "提醒" (Reminders). This structure was chosen for its clear, task-oriented user flow, allowing users to easily navigate between the primary functions of recording data, reviewing it, and setting reminders without page reloads. A central login page ensures data privacy and user-specific content. The layout is responsive, adapting from a single column on mobile to a more spread-out layout on desktop. Key information is grouped into logical cards for better readability. -->
+    <!-- Visualization & Content Choices:
+        - **Report Info:** Blood pressure data (systolic, diastolic, pulse) and notes over time.
+        - **Goal:** Allow users to record, visualize, and review their health data.
+        - **Viz/Presentation Method:**
+            - **Line Chart (Chart.js/Canvas):** To visualize trends of systolic, diastolic, and pulse over time. This is a clear way to see changes and patterns.
+            - **Interactive List:** To display detailed historical records, including text notes.
+            - **Printable Table:** To generate a professional-looking report.
+        - **Interaction:**
+            - **Tab Navigation:** Simple clicks to switch between main functions.
+            - **Dropdowns/Filters:** To filter data by time of day (all, morning, noon, evening) and by period (day, week, month) for charts and lists.
+            - **Print Button:** To trigger a print-friendly view of a selected date range.
+        - **Justification:** This interactive structure prioritizes user control and data exploration. The combination of a visual chart and a detailed, filterable list provides both a high-level overview and specific details, catering to different user needs.
+        - **Library/Method:** Chart.js for all charting, vanilla JavaScript for all interactions and data handling, and Tailwind CSS for all styling.
+        - **CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 sm:p-8 space-y-6">
         <div class="flex flex-col items-center text-center">
             <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">每日血压记录</h1>
             <p class="text-gray-500 mt-2">使用您的用户名和密码安全登录</p>
         </div>
-
         <div id="auth-section" class="space-y-4">
             <div id="tab-content" class="space-y-4">
                 <div id="content-user-pass" class="space-y-4">
@@ -109,19 +129,16 @@
                 <p id="status-message" class="font-medium"></p>
             </div>
         </div>
-
         <div id="app-content" class="hidden space-y-6 no-print">
             <div class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-sm break-words flex justify-between items-center">
                 <p id="user-id-display" class="font-medium"></p>
                 <button id="logout-btn" class="bg-red-500 text-white text-xs px-3 py-1 rounded-full hover:bg-red-600 transition-all">退出登录</button>
             </div>
-
             <div class="flex border-b-2 border-gray-200">
                 <button id="tab-record" class="flex-1 py-2 text-center text-gray-600 font-semibold border-b-2 border-transparent transition-all duration-300">记录</button>
                 <button id="tab-history" class="flex-1 py-2 text-center text-gray-600 font-semibold border-b-2 border-transparent transition-all duration-300">历史与打印</button>
                 <button id="tab-reminders" class="flex-1 py-2 text-center text-gray-600 font-semibold border-b-2 border-transparent transition-all duration-300">提醒</button>
             </div>
-
             <div id="content-record" class="space-y-6">
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
                     <div class="flex flex-col space-y-2">
@@ -131,6 +148,10 @@
                     <div class="flex flex-col space-y-2">
                         <label for="diastolic" class="text-sm font-medium text-gray-700">舒张压 (mmHg)</label>
                         <input type="number" id="diastolic" placeholder="例如：80" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <label for="pulse" class="text-sm font-medium text-gray-700">脉搏 (bpm)</label>
+                        <input type="number" id="pulse" placeholder="例如：75" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                     </div>
                     <div class="flex flex-col space-y-2">
                         <label for="record-time" class="text-sm font-medium text-gray-700">记录时间段</label>
@@ -150,13 +171,16 @@
                             <option value="other-10">其他10</option>
                         </select>
                     </div>
+                    <div class="flex flex-col space-y-2">
+                        <label for="note" class="text-sm font-medium text-gray-700">备注</label>
+                        <textarea id="note" placeholder="记录您的感受或任何其他信息..." class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"></textarea>
+                    </div>
                     <button id="record-btn" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center">
                         <span id="record-btn-text">记录</span>
                         <div id="record-btn-spinner" class="btn-loading-spinner"></div>
                     </button>
                 </div>
             </div>
-
             <div id="content-history" class="space-y-6 hidden">
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
                     <h2 class="text-xl font-semibold text-gray-800">历史图表</h2>
@@ -176,9 +200,10 @@
                         <option value="other-9">其他9</option>
                         <option value="other-10">其他10</option>
                     </select>
-                    <canvas id="myChart"></canvas>
+                    <div class="chart-container">
+                        <canvas id="myChart"></canvas>
+                    </div>
                 </div>
-
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
                     <h2 class="text-xl font-semibold text-gray-800">历史数据显示</h2>
                     <div class="flex flex-col space-y-2">
@@ -190,9 +215,9 @@
                         </select>
                     </div>
                     <div id="history-data-display" class="space-y-4">
-                         </div>
+                         <!-- 历史记录将在此动态加载 -->
+                    </div>
                 </div>
-
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
                     <h2 class="text-xl font-semibold text-gray-800">打印报告</h2>
                     <div class="flex flex-col space-y-2">
@@ -208,14 +233,13 @@
                     </button>
                 </div>
             </div>
-
             <div id="content-reminders" class="space-y-6 hidden">
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
                     <h2 class="text-xl font-semibold text-gray-800">高血压测量时间提醒</h2>
                     <div id="bp-reminders" class="space-y-4">
-                        </div>
+                        <!-- 血压提醒将在此动态加载 -->
+                    </div>
                 </div>
-
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
                     <h2 class="text-xl font-semibold text-gray-800">医院预约提醒</h2>
                     <div class="flex flex-col space-y-2">
@@ -245,11 +269,11 @@
                         <span>设置预约提醒</span>
                     </button>
                     <div id="hospital-reminders-display" class="space-y-2 mt-4 text-sm">
-                        </div>
+                        <!-- 提醒将在这里动态显示 -->
+                    </div>
                 </div>
             </div>
         </div>
-
         <div id="printable-area" class="hidden">
             <h1 class="text-2xl font-bold mb-4">血压记录报告</h1>
             <p id="print-date-range" class="text-gray-600 mb-4"></p>
@@ -260,6 +284,8 @@
                         <th class="border-b-2 py-2">时间段</th>
                         <th class="border-b-2 py-2">收缩压 (mmHg)</th>
                         <th class="border-b-2 py-2">舒张压 (mmHg)</th>
+                        <th class="border-b-2 py-2">脉搏 (bpm)</th>
+                        <th class="border-b-2 py-2">备注</th>
                     </tr>
                 </thead>
                 <tbody id="print-data-body">
@@ -267,7 +293,6 @@
             </table>
         </div>
     </div>
-    
     <div id="modal" class="modal">
         <div class="modal-content">
             <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
@@ -275,23 +300,15 @@
             <button id="modal-ok-btn" class="bg-blue-600 text-white px-6 py-2 rounded-xl">好的</button>
         </div>
     </div>
-
     <div id="loading-spinner" class="hidden">
         <div class="spinner-border text-blue-500"></div>
         <span class="ml-2 text-gray-600">加载中...</span>
     </div>
-
     <audio id="reminder-sound" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" preload="auto"></audio>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, onSnapshot, serverTimestamp, getDocs, query, where, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
-        // import { setLogLevel } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
-
-        // IMPORTANT: In production, remove this line.
-        // setLogLevel('debug');
-
-        // Check global variables and initialize Firebase
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'gaoxueyajilu';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyCpHJVVOQy51sPh6sU3GRotLG1v54IjXmk",
@@ -302,14 +319,12 @@
             appId: "1:902988573811:web:00cee1c09af3b9c96b0e06",
             measurementId: "G-SGN0D6BGJ6"
         };
-        
         let app, db, auth, userId = null;
         let reminderTimeouts = {};
         let chartInstance = null;
         let allReadings = [];
         let hospitalReminders = {};
         let bpReminders = {};
-
         const authSection = document.getElementById('auth-section');
         const appContent = document.getElementById('app-content');
         const usernameInput = document.getElementById('username');
@@ -326,14 +341,14 @@
         const recordBtn = document.getElementById('record-btn');
         const systolicInput = document.getElementById('systolic');
         const diastolicInput = document.getElementById('diastolic');
+        const pulseInput = document.getElementById('pulse');
+        const noteTextarea = document.getElementById('note');
         const recordTimeSelect = document.getElementById('record-time');
         const userIdDisplay = document.getElementById('user-id-display');
         const loadingSpinner = document.getElementById('loading-spinner');
         const reminderSound = document.getElementById('reminder-sound');
         const usernameError = document.getElementById('username-error');
         const passwordError = document.getElementById('password-error');
-        
-        // App content tabs
         const tabRecord = document.getElementById('tab-record');
         const tabHistory = document.getElementById('tab-history');
         const tabReminders = document.getElementById('tab-reminders');
@@ -351,20 +366,15 @@
         const hospitalTimeInput = document.getElementById('hospital-time');
         const hospitalNoteTextarea = document.getElementById('hospital-note');
         const setHospitalReminderBtn = document.getElementById('set-hospital-reminder-btn');
-
         const printableArea = document.getElementById('printable-area');
         const printDateRange = document.getElementById('print-date-range');
         const printDataBody = document.getElementById('print-data-body');
         const historyFilterPeriod = document.getElementById('history-filter-period');
         const historyDataDisplay = document.getElementById('history-data-display');
-
-        // Modal elements
         const modal = document.getElementById('modal');
         const modalTitle = document.getElementById('modal-title');
         const modalMessage = document.getElementById('modal-message');
         const modalOkBtn = document.getElementById('modal-ok-btn');
-
-        // Initialize Firebase
         try {
             if (!app) {
                 app = initializeApp(firebaseConfig);
@@ -375,29 +385,22 @@
             console.error("Firebase initialization failed:", e);
             showStatus("Firebase 初始化失败，请检查配置或网络连接。", true);
         }
-
-        // Show status message
         const showStatus = (message, isError = false) => {
             statusMessageDiv.classList.remove('hidden');
             statusMessageDiv.className = `p-4 rounded-xl text-sm break-words ${isError ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-blue-50 border border-blue-200 text-blue-800'}`;
             statusMessage.textContent = message;
         };
-
-        // Show custom modal
         const showModal = (title, message) => {
             modalTitle.textContent = title;
             modalMessage.textContent = message;
             modal.style.display = 'flex';
             reminderSound.play();
         };
-
         modalOkBtn.addEventListener('click', () => {
             modal.style.display = 'none';
             reminderSound.pause();
             reminderSound.currentTime = 0;
         });
-
-        // Set button loading state
         const setButtonLoadingState = (button, textSpan, spinner, isLoading) => {
             if (isLoading) {
                 button.disabled = true;
@@ -409,26 +412,19 @@
                 if (spinner) spinner.style.display = 'none';
             }
         };
-
-        // Activate app tab
         const activateAppTab = (tabId) => {
             document.querySelectorAll('#app-content .border-b-2').forEach(tab => {
                 tab.classList.remove('border-blue-500', 'text-blue-600');
                 tab.classList.add('border-transparent', 'text-gray-600');
             });
             document.getElementById(tabId).classList.add('border-blue-500', 'text-blue-600');
-            
             document.querySelectorAll('#app-content > div:not(.no-print, .bg-blue-50, .flex)').forEach(content => content.classList.add('hidden'));
             document.getElementById(`content-${tabId.split('-')[1]}`).classList.remove('hidden');
         };
-
         tabRecord.addEventListener('click', () => activateAppTab('tab-record'));
         tabHistory.addEventListener('click', () => activateAppTab('tab-history'));
         tabReminders.addEventListener('click', () => activateAppTab('tab-reminders'));
-        
-        activateAppTab('tab-record'); // Default to record tab
-
-        // Listen for auth state changes
+        activateAppTab('tab-record');
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 userId = user.uid;
@@ -449,14 +445,11 @@
                 clearReminders();
             }
         });
-
-        // Register new account
         registerBtn.addEventListener('click', async () => {
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
             usernameError.classList.add('hidden');
             passwordError.classList.add('hidden');
-
             if (!username) {
                 usernameError.textContent = "用户名不能为空。";
                 usernameError.classList.remove('hidden');
@@ -467,9 +460,7 @@
                 passwordError.classList.remove('hidden');
                 return;
             }
-
             const email = `${username}@your-app-domain.com`;
-            
             try {
                 setButtonLoadingState(registerBtn, registerBtnText, registerBtnSpinner, true);
                 loginBtn.disabled = true;
@@ -491,14 +482,11 @@
                 loginBtn.disabled = false;
             }
         });
-
-        // Log in to existing account
         loginBtn.addEventListener('click', async () => {
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
             usernameError.classList.add('hidden');
             passwordError.classList.add('hidden');
-
             if (!username) {
                 usernameError.textContent = "请输入用户名。";
                 usernameError.classList.remove('hidden');
@@ -509,9 +497,7 @@
                 passwordError.classList.remove('hidden');
                 return;
             }
-            
             const email = `${username}@your-app-domain.com`;
-
             try {
                 setButtonLoadingState(loginBtn, loginBtnText, loginBtnSpinner, true);
                 registerBtn.disabled = true;
@@ -525,8 +511,6 @@
                 registerBtn.disabled = false;
             }
         });
-
-        // Log out
         logoutBtn.addEventListener('click', async () => {
             try {
                 await signOut(auth);
@@ -535,14 +519,14 @@
                 showStatus("退出登录失败，请重试。", true);
             }
         });
-
-        // Record blood pressure data
         recordBtn.addEventListener('click', async () => {
             const systolic = parseInt(systolicInput.value, 10);
             const diastolic = parseInt(diastolicInput.value, 10);
+            const pulse = parseInt(pulseInput.value, 10);
+            const note = noteTextarea.value.trim();
             const timePeriod = recordTimeSelect.value;
-            if (isNaN(systolic) || isNaN(diastolic) || systolic <= 0 || diastolic <= 0) {
-                showStatus("请输入有效的血压值。", true);
+            if (isNaN(systolic) || isNaN(diastolic) || isNaN(pulse) || systolic <= 0 || diastolic <= 0 || pulse <= 0) {
+                showStatus("请输入有效的血压值和脉搏。", true);
                 return;
             }
             if (!userId) {
@@ -555,11 +539,15 @@
                 await addDoc(collection(db, readingsPath), {
                     systolic: systolic,
                     diastolic: diastolic,
+                    pulse: pulse,
+                    note: note,
                     timePeriod: timePeriod,
                     timestamp: serverTimestamp()
                 });
                 systolicInput.value = '';
                 diastolicInput.value = '';
+                pulseInput.value = '';
+                noteTextarea.value = '';
                 showStatus("血压记录成功。", false);
                 console.log("Blood pressure recorded successfully.");
             } catch (e) {
@@ -569,8 +557,6 @@
                 setButtonLoadingState(recordBtn, document.getElementById('record-btn-text'), document.getElementById('record-btn-spinner'), false);
             }
         });
-
-        // Set up Firestore realtime listener
         function setupRealtimeListener() {
             if (!userId) {
                 console.error("User ID is not defined, cannot set up listener.");
@@ -581,7 +567,6 @@
             }
             const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
             const q = query(collection(db, readingsPath), orderBy("timestamp", "desc"));
-            
             onSnapshot(q, (querySnapshot) => {
                 if(loadingSpinner) {
                     loadingSpinner.style.display = 'none';
@@ -592,8 +577,6 @@
                         allReadings.push({ id: doc.id, ...doc.data() });
                     });
                 }
-                
-                // Update chart and history list
                 updateChart(chartTimePeriodSelect.value);
                 updateHistoryDisplay();
             }, (error) => {
@@ -604,22 +587,18 @@
                 showStatus("获取数据失败，请检查网络连接。", true);
             });
         }
-        
-        // Update the chart
         const updateChart = (timePeriod) => {
             let dataToShow = allReadings;
             if (timePeriod !== 'all') {
                 dataToShow = allReadings.filter(r => r.timePeriod === timePeriod);
             }
-            
             const labels = dataToShow.map(r => r.timestamp ? r.timestamp.toDate().toLocaleString() : 'N/A');
             const systolicData = dataToShow.map(r => r.systolic);
             const diastolicData = dataToShow.map(r => r.diastolic);
-
+            const pulseData = dataToShow.map(r => r.pulse);
             if (chartInstance) {
                 chartInstance.destroy();
             }
-
             const ctx = myChartCanvas.getContext('2d');
             chartInstance = new Chart(ctx, {
                 type: 'line',
@@ -635,26 +614,45 @@
                         data: diastolicData,
                         borderColor: 'rgb(255, 99, 132)',
                         tension: 0.1
+                    }, {
+                        label: '脉搏 (bpm)',
+                        data: pulseData,
+                        borderColor: 'rgb(255, 159, 64)',
+                        tension: 0.1
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: false,
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y;
+                                    }
+                                    return label;
+                                }
+                            }
                         }
                     }
                 }
             });
         };
         chartTimePeriodSelect.addEventListener('change', () => updateChart(chartTimePeriodSelect.value));
-
-        // Update history data display
         const updateHistoryDisplay = () => {
             const filterPeriod = historyFilterPeriod.value;
             const now = new Date();
             let cutoffDate = new Date();
-
             switch (filterPeriod) {
                 case 'day':
                     cutoffDate.setDate(now.getDate() - 1);
@@ -665,34 +663,31 @@
                 case 'month':
                     cutoffDate.setMonth(now.getMonth() - 1);
                     break;
+                default:
+                    cutoffDate = new Date(0);
+                    break;
             }
-
             const filteredHistory = allReadings.filter(r => r.timestamp && r.timestamp.toDate() > cutoffDate);
-
             historyDataDisplay.innerHTML = '';
             if (filteredHistory.length === 0) {
                 historyDataDisplay.innerHTML = '<p class="text-gray-500 text-sm">没有找到符合条件的记录。</p>';
                 return;
             }
-            
             filteredHistory.forEach(reading => {
                 const date = reading.timestamp.toDate();
                 const displayDate = date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
                 const displayTime = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-
                 const div = document.createElement('div');
-                div.className = 'flex items-center justify-between p-3 bg-white rounded-xl shadow-sm';
+                div.className = 'flex flex-col p-3 bg-white rounded-xl shadow-sm space-y-1';
                 div.innerHTML = `
-                    <div class="flex-grow space-y-1">
-                        <p class="font-semibold text-gray-800">${displayDate} ${displayTime}</p>
-                        <p class="text-xs text-gray-500">${reading.timePeriod}：收缩压 ${reading.systolic} mmHg，舒张压 ${reading.diastolic} mmHg</p>
-                    </div>
+                    <p class="font-semibold text-gray-800">${displayDate} ${displayTime}</p>
+                    <p class="text-xs text-gray-500">${reading.timePeriod}：收缩压 ${reading.systolic} mmHg，舒张压 ${reading.diastolic} mmHg，脉搏 ${reading.pulse} bpm</p>
+                    ${reading.note ? `<p class="text-xs text-gray-600 italic">备注: ${reading.note}</p>` : ''}
                 `;
                 historyDataDisplay.appendChild(div);
             });
         };
         historyFilterPeriod.addEventListener('change', updateHistoryDisplay);
-
         const clearReminders = () => {
             for(let key in reminderTimeouts) {
                 clearTimeout(reminderTimeouts[key]);
@@ -701,53 +696,40 @@
             localStorage.removeItem('bpReminders');
             localStorage.removeItem('hospitalReminders');
         };
-
         const setupReminderUI = () => {
-            // Load reminders from local storage
             const savedBPReminders = localStorage.getItem('bpReminders');
             if (savedBPReminders) {
                 bpReminders = JSON.parse(savedBPReminders);
                 updateBPRemindersDisplay();
             } else {
                 bpReminders = {};
-                // Display initial reminder creation form
                 updateBPRemindersDisplay();
             }
-
             const savedHospitalReminders = localStorage.getItem('hospitalReminders');
             if (savedHospitalReminders) {
                 hospitalReminders = JSON.parse(savedHospitalReminders);
                 updateHospitalRemindersDisplay();
             }
-
-            // Bind hospital reminder set button
             setHospitalReminderBtn.addEventListener('click', () => {
                 const selectedAppointment = hospitalAppointmentSelect.value;
                 const time = hospitalTimeInput.value;
                 const note = hospitalNoteTextarea.value;
-                
                 if (!time) {
                     showModal("错误", "请选择预约时间。");
                     return;
                 }
-                
                 const reminderMessage = `预约 ${selectedAppointment}: ${note || '没有备注'}`;
                 const reminderId = `hospital-${selectedAppointment}`;
                 const reminderTime = new Date(time).getTime();
-                
                 hospitalReminders[reminderId] = { time, note, id: reminderId };
                 localStorage.setItem('hospitalReminders', JSON.stringify(hospitalReminders));
-                
                 scheduleReminder(reminderId, reminderTime, reminderMessage);
                 updateHospitalRemindersDisplay();
                 showModal("成功", `预约 ${selectedAppointment} 已设置！`);
             });
         };
-        
         const updateBPRemindersDisplay = () => {
             bpRemindersContainer.innerHTML = '';
-            
-            // Add a form to add a new reminder
             const addForm = document.createElement('div');
             addForm.className = 'flex items-center space-x-2';
             addForm.innerHTML = `
@@ -755,8 +737,6 @@
                 <button id="set-new-bp-reminder-btn" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-md hover:bg-blue-600">设置</button>
             `;
             bpRemindersContainer.appendChild(addForm);
-
-            // Bind the set new reminder button
             document.getElementById('set-new-bp-reminder-btn').addEventListener('click', () => {
                 const timeInput = document.getElementById('new-bp-time');
                 const time = timeInput.value;
@@ -764,15 +744,12 @@
                     const reminderId = `bp-${Date.now()}`;
                     bpReminders[reminderId] = { time, id: reminderId };
                     localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
-                    
                     scheduleReminder(reminderId, null, `是时候测量血压了！`, time);
                     updateBPRemindersDisplay();
                 } else {
                     showModal("错误", "请选择一个时间。");
                 }
             });
-
-            // Display existing reminders
             for (const key in bpReminders) {
                 const reminder = bpReminders[key];
                 const div = document.createElement('div');
@@ -782,12 +759,8 @@
                     <button class="delete-bp-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
                 `;
                 bpRemindersContainer.appendChild(div);
-
-                // Re-schedule existing reminder on page load
                 scheduleReminder(reminder.id, null, `是时候测量血压了！`, reminder.time);
             }
-            
-            // Bind the delete buttons for existing reminders
             document.querySelectorAll('.delete-bp-reminder-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const idToDelete = e.target.dataset.id;
@@ -803,8 +776,6 @@
                 });
             });
         };
-
-
         const updateHospitalRemindersDisplay = () => {
             hospitalRemindersDisplay.innerHTML = '';
             const sortedKeys = Object.keys(hospitalReminders).sort();
@@ -826,12 +797,9 @@
                     <button class="delete-hospital-reminder-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600 ml-2" data-id="${reminder.id}">删除</button>
                 `;
                 hospitalRemindersDisplay.appendChild(div);
-
-                // Re-schedule existing hospital reminder
                 const reminderTime = new Date(reminder.time).getTime();
                 scheduleReminder(reminder.id, reminderTime, `预约 ${key.split('-')[1]}: ${reminder.note || '没有备注'}`);
             });
-            // Add event listeners for the newly created delete buttons
             document.querySelectorAll('.delete-hospital-reminder-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const idToDelete = e.target.dataset.id;
@@ -847,13 +815,10 @@
                 });
             });
         };
-        
         const scheduleReminder = (id, timestamp, message, timeString) => {
-            // Clear existing timeout for this ID to prevent duplicates
             if (reminderTimeouts[id]) {
                 clearTimeout(reminderTimeouts[id]);
             }
-            
             let reminderTime = new Date();
             if (timestamp) {
                 reminderTime.setTime(timestamp);
@@ -861,24 +826,17 @@
                 const [hours, minutes] = timeString.split(':').map(Number);
                 reminderTime.setHours(hours, minutes, 0, 0);
             } else {
-                return; // Not enough info to schedule
-            }
-
-            const now = new Date();
-            let timeUntilReminder = reminderTime.getTime() - now.getTime();
-            
-            // If the time is in the past, schedule it for the next day.
-            // This handles the case of page refresh after the time has passed.
-            if (timeUntilReminder < 0 && !timestamp) { // Only for daily BP reminders, not one-time hospital ones
-                timeUntilReminder += 24 * 60 * 60 * 1000;
-            } else if (timeUntilReminder < 0 && timestamp) {
-                // For one-time hospital reminders in the past, don't schedule them
                 return;
             }
-
+            const now = new Date();
+            let timeUntilReminder = reminderTime.getTime() - now.getTime();
+            if (timeUntilReminder < 0 && !timestamp) {
+                timeUntilReminder += 24 * 60 * 60 * 1000;
+            } else if (timeUntilReminder < 0 && timestamp) {
+                return;
+            }
             const timeoutId = setTimeout(() => {
                 showModal("提醒", message);
-                // After the reminder sounds, remove it from the list
                 if (id.startsWith('bp-')) {
                     delete bpReminders[id];
                     localStorage.setItem('bpReminders', JSON.stringify(bpReminders));
@@ -890,54 +848,35 @@
                 }
                 delete reminderTimeouts[id];
             }, timeUntilReminder);
-            
             reminderTimeouts[id] = timeoutId;
         };
-
-        // Print function
+        const printBtn = document.getElementById('print-btn');
         printBtn.addEventListener('click', async () => {
             const startDate = startDateInput.value;
             const endDate = endDateInput.value;
-
             if (!startDate || !endDate) {
                 showModal("错误", "请选择开始和结束日期。");
                 return;
             }
-
             const start = new Date(startDate);
             const end = new Date(endDate);
-            end.setDate(end.getDate() + 1); // Ensure end date is inclusive
-
+            end.setDate(end.getDate() + 1);
             const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
             const q = query(
                 collection(db, readingsPath),
                 where('timestamp', '>=', start),
-                where('timestamp', '<', end)
+                where('timestamp', '<', end),
+                orderBy('timestamp', 'asc')
             );
-            
             try {
                 const querySnapshot = await getDocs(q);
                 printDataBody.innerHTML = '';
                 printDateRange.textContent = `日期范围：${startDate} 至 ${endDate}`;
-                
                 if (querySnapshot.empty) {
-                    printDataBody.innerHTML = '<tr><td colspan="4" class="text-center py-4">没有找到该日期范围内的记录。</td></tr>';
+                    printDataBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">没有找到该日期范围内的记录。</td></tr>';
                 } else {
-                    const printData = [];
-                    querySnapshot.forEach((doc) => {
+                    querySnapshot.forEach(doc => {
                         const reading = doc.data();
-                        printData.push(reading);
-                    });
-                    
-                    // Sort on the client side
-                    printData.sort((a, b) => {
-                        const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
-                        const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
-                        return timestampA - timestampB;
-                    });
-                    
-                    printData.forEach(reading => {
-                        // Correctly format the date and time for printing
                         const date = reading.timestamp.toDate();
                         const dateString = date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
                         const timeString = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -947,13 +886,13 @@
                             <td class="py-2 border-b">${reading.timePeriod}</td>
                             <td class="py-2 border-b">${reading.systolic} mmHg</td>
                             <td class="py-2 border-b">${reading.diastolic} mmHg</td>
+                            <td class="py-2 border-b">${reading.pulse} bpm</td>
+                            <td class="py-2 border-b">${reading.note || '无'}</td>
                         `;
                         printDataBody.appendChild(tr);
                     });
                 }
-                
                 window.print();
-
             } catch (e) {
                 console.error("Failed to fetch print data:", e);
                 showModal("错误", "获取打印数据失败，请重试。");
@@ -962,4 +901,3 @@
     </script>
 </body>
 </html>
-
