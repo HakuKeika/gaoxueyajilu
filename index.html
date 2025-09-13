@@ -425,7 +425,7 @@
         tabHistory.addEventListener('click', () => activateAppTab('tab-history'));
         tabReminders.addEventListener('click', () => activateAppTab('tab-reminders'));
         activateAppTab('tab-record');
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
                 userId = user.uid;
                 authSection.classList.add('hidden');
