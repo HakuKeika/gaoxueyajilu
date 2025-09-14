@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>每日血压记录应用增强版</title>
-    <!-- 修复：使用版本锁定的 Tailwind CDN（生产建议用 CLI 生成 CSS） -->
+    <!-- 使用版本锁定的 Tailwind CDN（生产建议用 CLI 生成 CSS） -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -80,7 +80,6 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <!-- 应用结构保持不变 -->
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 sm:p-8 space-y-6">
         <div class="flex flex-col items-center text-center">
             <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">每日血压记录</h1>
@@ -201,7 +200,7 @@
                         </select>
                     </div>
                     <div id="history-data-display" class="space-y-4">
-                         <!-- 历史记录将在此动态加载 -->
+                        <!-- 历史记录将在此动态加载 -->
                     </div>
                 </div>
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
@@ -286,7 +285,6 @@
             <button id="modal-ok-btn" class="bg-blue-600 text-white px-6 py-2 rounded-xl">好的</button>
         </div>
     </div>
-    <!-- 修复：移除未使用的 loading-spinner DIV，代码中已处理显示 -->
     <audio id="reminder-sound" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" preload="auto"></audio>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
@@ -341,7 +339,6 @@
         const myChartCanvas = document.getElementById('myChart');
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
-        // 修复：声明 printBtn 一次
         const printBtn = document.getElementById('print-btn');
         const bpRemindersContainer = document.getElementById('bp-reminders');
         const hospitalRemindersDisplay = document.getElementById('hospital-reminders-display');
@@ -377,7 +374,7 @@
             modalTitle.textContent = title;
             modalMessage.textContent = message;
             modal.style.display = 'flex';
-            reminderSound.play().catch(e => console.log('Audio play failed:', e));  // 修复：添加 catch 以防音频错误
+            reminderSound.play().catch(e => console.log('Audio play failed:', e));
         };
         modalOkBtn.addEventListener('click', () => {
             modal.style.display = 'none';
@@ -553,7 +550,6 @@
                 console.error("User ID is not defined, cannot set up listener.");
                 return;
             }
-            // 修复：loadingSpinner 未定义，使用简单 console
             console.log('Loading data...');
             const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
             const q = query(collection(db, readingsPath), orderBy("timestamp", "desc"));
@@ -665,11 +661,35 @@
                 const div = document.createElement('div');
                 div.className = 'flex flex-col p-3 bg-white rounded-xl shadow-sm space-y-1';
                 div.innerHTML = `
-                    <p class="font-semibold text-gray-800">${displayDate} ${displayTime}</p>
+                    <div class="flex justify-between items-center">
+                        <p class="font-semibold text-gray-800">${displayDate} ${displayTime}</p>
+                        <button class="delete-record-btn bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600" data-id="${reading.id}">删除</button>
+                    </div>
                     <p class="text-xs text-gray-500">${reading.timePeriod}：收缩压 ${reading.systolic} mmHg，舒张压 ${reading.diastolic} mmHg，脉搏 ${reading.pulse} bpm</p>
                     ${reading.note ? `<p class="text-xs text-gray-600 italic">备注: ${reading.note}</p>` : ''}
                 `;
                 historyDataDisplay.appendChild(div);
+            });
+            // 添加删除按钮事件监听
+            document.querySelectorAll('.delete-record-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const recordId = e.target.dataset.id;
+                    showModal("确认删除", "确定要删除此血压记录吗？");
+                    const tempHandler = async () => {
+                        modalOkBtn.removeEventListener('click', tempHandler);
+                        modal.style.display = 'none';
+                        try {
+                            const readingsPath = `/artifacts/${appId}/users/${userId}/readings`;
+                            await deleteDoc(doc(db, readingsPath, recordId));
+                            showStatus("记录已删除。", false);
+                            // onSnapshot 会自动触发 updateChart 和 updateHistoryDisplay
+                        } catch (error) {
+                            console.error("Delete record failed:", error);
+                            showStatus("删除记录失败，请重试。", true);
+                        }
+                    };
+                    modalOkBtn.addEventListener('click', tempHandler);
+                });
             });
         };
         historyFilterPeriod.addEventListener('change', updateHistoryDisplay);
@@ -750,7 +770,6 @@
                 btn.addEventListener('click', (e) => {
                     const idToDelete = e.target.dataset.id;
                     showModal("确认删除", "确定要删除此提醒吗？");
-                    // 修复：使用一次性事件监听，避免覆盖
                     const tempHandler = () => {
                         modalOkBtn.removeEventListener('click', tempHandler);
                         modal.style.display = 'none';
@@ -840,7 +859,6 @@
             }, timeUntilReminder);
             reminderTimeouts[id] = timeoutId;
         };
-        // 修复：移除重复的 printBtn 声明，直接使用上面的变量
         printBtn.addEventListener('click', async () => {
             const startDate = startDateInput.value;
             const endDate = endDateInput.value;
@@ -882,9 +900,9 @@
                         printDataBody.appendChild(tr);
                     });
                 }
-                printableArea.classList.remove('hidden');  // 确保打印区域可见
+                printableArea.classList.remove('hidden');
                 window.print();
-                printableArea.classList.add('hidden');  // 打印后隐藏
+                printableArea.classList.add('hidden');
             } catch (e) {
                 console.error("Failed to fetch print data:", e);
                 showModal("错误", "获取打印数据失败，请重试。");
